@@ -33,6 +33,9 @@ textarea{min-height:70px;resize:vertical}label{font-size:12px;color:var(--mut);d
 .box{background:#fff;border-radius:12px;padding:16px;margin-bottom:14px}.row{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}
 .alert{background:#fef3c7;border-right:5px solid #f59e0b;padding:10px 14px;border-radius:8px;margin:8px 0;font-weight:600}.empty{color:var(--mut);padding:30px;text-align:center}
 @media(max-width:760px){.shell{flex-direction:column}.side{width:100%;height:auto;position:static;flex-direction:row;overflow:auto}.side h3,.side img{display:none}.side a{white-space:nowrap}.rxr{grid-template-columns:1fr 1fr}}
+.kg{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px}.kp{margin:0!important;padding:10px 8px!important;text-align:center}.kl{color:var(--mut);font-size:12px}.kv{font-size:20px;font-weight:800}
+.lr{display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:6px}.dz{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}.dz>div{border:2px solid var(--line);border-radius:10px;padding:10px;text-align:center;cursor:pointer;font-size:13px}.dz>div.on{border-color:var(--pri);background:#e6f5f3;font-weight:700}
+@media(max-width:760px){.kg{grid-template-columns:repeat(3,1fr);gap:6px}.kp{padding:7px 3px!important}.kl{font-size:11px}.kv{font-size:17px}.main{padding:12px}}
 </style></head><body><div id="app"></div><div id="modal"></div><div id="rxm"></div>
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -51,8 +54,8 @@ const ST={booked:'محجوز',confirmed:'مؤكد',waiting:'في الانتظا�
 const ROLE={admin:'مدير',doctor:'طبيب',secretary:'سكرتارية'};
 const ALL=['admin','doctor','secretary'];
 const TABS=[['dash','📊 الرئيسية',ALL],['book','📅 الحجوزات',['admin','secretary']],['waiting','🩺 شاشة الطبيب',['admin','doctor']],['results','🧪 انتظار نتائج',['admin','doctor']],['done','✅ تم الكشف',['admin','doctor']],['ops','💰 الحسابات',['admin','secretary']],['archive','🗄 الأرشيف',ALL],['contracts','🤝 التعاقدات',['admin','secretary']],['fin','🏦 الالتزامات النقدية',['admin','secretary']],['set','⚙ الإعدادات',['admin']]];
-let S={u:null,p:[],us:[],fin:[],drugs:[],chargeItems:[],actionItems:[],pay:[],exp:[],contracts:[],refs:[],cfg:{},v:null,ops2:'عمليات'},D=null,rxOpen=false;
-const BLANK=()=>({status:'booked',type:'كشف جديد',notes:'',date:today(),time:'',name:'',phone:'',age:'',gender:'',hist:'',diag:'',enotes:'',chronic:[],charges:[],actions:[],rx:[],rxNote:'',files:[],res:{type:'',note:''},op:{name:'',type:'',total:'',paid:'',date:''}});
+let S={u:null,p:[],us:[],fin:[],drugs:[],labItems:[],rxbg:{},chargeItems:[],actionItems:[],pay:[],exp:[],contracts:[],refs:[],cfg:{},v:null,ops2:'عمليات'},D=null,rxOpen=false;
+const BLANK=()=>({labs:[],labNote:'',status:'booked',type:'كشف جديد',notes:'',date:today(),time:'',name:'',phone:'',age:'',gender:'',hist:'',diag:'',enotes:'',chronic:[],charges:[],actions:[],rx:[],rxNote:'',files:[],res:{type:'',note:''},op:{name:'',type:'',total:'',paid:'',date:''}});
 
 /* ---------- بيانات ---------- */
 async function boot(){
@@ -66,6 +69,7 @@ async function boot(){
 window.addEventListener('beforeunload',ev=>{ev.preventDefault();ev.returnValue=''});
 function listen(){
   onSnapshot(collection(db,'drugs'),s=>{S.drugs=s.docs.map(d=>d.data())});
+  onSnapshot(collection(db,'labItems'),s=>{S.labItems=s.docs.map(d=>d.data()).sort((a,b)=>a.name.localeCompare(b.name,'ar'));R()});onSnapshot(doc(db,'settings','rxbg'),s=>{S.rxbg=s.data()||{};R()});
   onSnapshot(collection(db,'chargeItems'),s=>{S.chargeItems=s.docs.map(d=>d.data())});
   onSnapshot(collection(db,'actionItems'),s=>{S.actionItems=s.docs.map(d=>d.data())});
   onSnapshot(collection(db,'patients'),s=>{S.p=s.docs.map(d=>({...d.data(),id:d.id}));R()});
@@ -101,20 +105,20 @@ window.S=S;window.R=R;
 const list=(st)=>S.p.filter(p=>st.includes(p.status));
 function card(p,acts=''){
   const cls=p.cls||p.status;
-  return `<div class="card ${cls}" onclick="openP('${p.id}')">${p.num?`<span class="n">#${p.num}</span>`:''}<b>${e(p.name)}</b><small>${e(p.age?p.age+' سنة • ':'')}${e(p.phone||'')}</small><small>📅 ${e(p.date||'')} ${e(p.time||'')}</small>${p.notes?`<small>📝 ${e(p.notes.slice(0,60))}</small>`:''}${p.diag&&isDoc()?`<small>🩺 ${e(p.diag.slice(0,50))}</small>`:''}<span class="bd">${p.badge||ST[p.status]}</span> ${tag(p)}<div class="acts" onclick="event.stopPropagation()">${acts}</div></div>`;
+  return `<div class="card ${cls}" onclick="openP('${p.id}')">${p.num?`<span class="n">#${p.num}</span>`:''}<b>${e(p.name)}</b><small>${e(p.age?p.age+' سنة • ':'')}${e(p.phone||'')}</small><small>📅 ${e(p.date||'')} ${e(p.time||'')}</small>${p.bookedBy?`<small>👤 حجز بواسطة: ${e(p.bookedBy)}</small>`:''}${p.notes?`<small>📝 ${e(p.notes.slice(0,60))}</small>`:''}${p.diag&&isDoc()?`<small>🩺 ${e(p.diag.slice(0,50))}</small>`:''}<span class="bd">${p.badge||ST[p.status]}</span> ${tag(p)}<div class="acts" onclick="event.stopPropagation()">${acts}</div></div>`;
 }
 function examCard(p){
-  return `<div class="card ${p.status}" onclick="openExam('${p.id}')">${p.num?`<span class="n">#${p.num}</span>`:''}<b>${e(p.name)}</b><small>${e(p.type||'كشف جديد')}</small><span class="bd">${ST[p.status]}</span> ${tag(p)}<div class="acts" onclick="event.stopPropagation()">${B('تفاصيل',`detail('${p.id}')`,'g')}</div></div>`;
+  return `<div class="card ${p.status}" onclick="openExam('${p.id}')">${p.num?`<span class="n">#${p.num}</span>`:''}<b>${e(p.name)}</b><small>${e(p.type||'كشف جديد')}</small>${p.bookedBy?`<small>👤 حجز بواسطة: ${e(p.bookedBy)}</small>`:''}<span class="bd">${ST[p.status]}</span> ${tag(p)}<div class="acts" onclick="event.stopPropagation()">${B('تفاصيل',`detail('${p.id}')`,'g')}</div></div>`;
 }
 const B=(t,fn,cl='')=>`<button class="btn s ${cl}" onclick="${fn}">${t}</button>`;
 const grid=(a,f)=>a.length?`<div class="grid">${a.map(f).join('')}</div>`:`<div class="empty">لا توجد حالات هنا</div>`;
-const kpi=(l,val,c)=>`<div class="box" style="text-align:center"><div style="color:var(--mut);font-size:13px">${l}</div><div style="font-size:22px;font-weight:800;color:${c||'var(--ink)'}">${val}</div></div>`;
+const kpi=(l,val,c)=>`<div class="box kp"><div class="kl">${l}</div><div class="kv" style="color:${c||'var(--ink)'}">${val}</div></div>`;
 function statsGrid(hide){
   const d=today(),todayP=S.p.filter(p=>p.date===d);
   const waitingN=list(['waiting']).length,examN=todayP.filter(p=>p.type==='كشف جديد').length,followN=todayP.filter(p=>p.type==='متابعة').length,consultN=todayP.filter(p=>p.type==='استشارة').length;
   const rev=S.pay.filter(x=>x.date===d).reduce((s,x)=>s+(+x.amount||0),0);
-  let h=`<div class="grid">${kpi('في الانتظار',waitingN)}${kpi('كشوفات اليوم',examN)}${kpi('متابعات اليوم',followN)}${kpi('استشارات اليوم',consultN)}`;
-  if(hide){h+=`<div class="box" style="text-align:center;cursor:pointer" onclick="S.showRev=!S.showRev;R()"><div style="color:var(--mut);font-size:13px">إجمالي المتحصلات اليوم ${S.showRev?'':'(اضغط للعرض)'}</div><div style="font-size:22px;font-weight:800;color:#059669">${S.showRev?rev:'••••'}</div></div>`}
+  let h=`<div class="kg">${kpi('في الانتظار',waitingN)}${kpi('كشوفات اليوم',examN)}${kpi('متابعات اليوم',followN)}${kpi('استشارات اليوم',consultN)}`;
+  if(hide){h+=`<div class="box kp" style="cursor:pointer" onclick="S.showRev=!S.showRev;R()"><div class="kl">إجمالي المتحصلات اليوم ${S.showRev?'':'(اضغط للعرض)'}</div><div class="kv" style="color:#059669">${S.showRev?rev:'••••'}</div></div>`}
   else{const opsN=S.p.filter(p=>p.op?.name).length,itemsN=todayP.reduce((s,p)=>s+(p.charges?.length||0),0);h+=kpi('إجمالي المتحصلات اليوم',rev,'#059669')+kpi('عدد العمليات',opsN)+kpi('عدد البنود المضافة اليوم',itemsN)}
   return h+'</div>';
 }
@@ -133,14 +137,13 @@ function view(){
     const revT=S.pay.filter(x=>x.date===d).reduce((s,x)=>s+(+x.amount||0),0),expT=S.exp.filter(x=>x.date===d).reduce((s,x)=>s+(+x.amount||0),0);
     const revM=S.pay.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+(+x.amount||0),0),expM=S.exp.filter(x=>x.date?.startsWith(m)).reduce((s,x)=>s+(+x.amount||0),0);
     const pM=S.p.filter(p=>p.date?.startsWith(m)).length;
-    const kpi=(l,val,c)=>`<div class="box" style="text-align:center"><div style="color:var(--mut);font-size:13px">${l}</div><div style="font-size:26px;font-weight:800;color:${c||'var(--ink)'}">${val}</div></div>`;
-    return head('الرئيسية')+`<div class="grid">${kpi('حجوزات اليوم',todayP.length)}${kpi('في الانتظار الآن',waitingN)}${kpi('تم الكشف اليوم',doneToday)}${kpi('إيراد اليوم',revT,'#059669')}${kpi('مصروف اليوم',expT,'#dc2626')}${kpi('صافي اليوم',revT-expT)}</div>`
+    return head('الرئيسية')+`<div class="kg">${kpi('حجوزات اليوم',todayP.length)}${kpi('في الانتظار الآن',waitingN)}${kpi('تم الكشف اليوم',doneToday)}${kpi('إيراد اليوم',revT,'#059669')}${kpi('مصروف اليوم',expT,'#dc2626')}${kpi('صافي اليوم',revT-expT)}</div>`
     +`<div class="box" style="margin-top:16px"><div class="f"><div><label>عرض إحصائية شهر</label><input type="month" value="${m}" onchange="S.month=this.value;R()"></div></div></div>`
-    +`<div class="grid">${kpi('عدد المرضى هذا الشهر',pM)}${kpi('إيراد الشهر',revM,'#059669')}${kpi('مصروف الشهر',expM,'#dc2626')}${kpi('صافي الشهر',revM-expM)}</div>`;
+    +`<div class="kg">${kpi('عدد المرضى هذا الشهر',pM)}${kpi('إيراد الشهر',revM,'#059669')}${kpi('مصروف الشهر',expM,'#dc2626')}${kpi('صافي الشهر',revM-expM)}</div>`;
   }
   if(v==='ops'){
     const sub=S.ops2||'عمليات';
-    const nav=`<div class="subnav">${['عمليات','فواتير','إقفال يومي'].map(t=>`<button class="btn s ${sub===t?'':'g'}" onclick="S.ops2='${t}';R()">${t}</button>`).join('')}</div>`;
+    const nav=`<div class="subnav">${['عمليات','فواتير','إقفال يومي','تقرير الموظفين'].map(t=>`<button class="btn s ${sub===t?'':'g'}" onclick="S.ops2='${t}';R()">${t}</button>`).join('')}</div>`;
     if(sub==='عمليات'){
       const a=S.p.filter(p=>p.op?.name),paid=a.reduce((s,p)=>s+(+p.op.paid||0),0),rem=a.reduce((s,p)=>s+(+p.op.total||0)-(+p.op.paid||0),0);
       return head('الحسابات',`<b>المحصّل: ${paid} — المتبقي: ${rem}</b>`)+statsGrid(false)+nav+grid(a,p=>{const t=+p.op.total||0,pd=+p.op.paid||0,r=t-pd;
@@ -149,7 +152,14 @@ function view(){
     if(sub==='فواتير'){
       const a=S.p.filter(p=>p.charges?.some(c=>!c.paid));
       const tot=a.reduce((s,p)=>s+p.charges.filter(c=>!c.paid).reduce((s2,c)=>s2+(+c.amount||0),0),0);
-      return head('الحسابات',`<b>إجمالي غير المسدد: ${tot}</b>`)+statsGrid(false)+nav+(a.length?a.map(p=>`<div class="box"><div class="row" style="border:0"><b>${e(p.name)}</b><span>${tag(p)}</span></div>${p.charges.filter(c=>!c.paid).map(c=>{const i=p.charges.indexOf(c);return `<div class="row"><span>${e(c.name||'بند')} — ${e(c.amount||0)}</span>${B('سداد',`payCharge('${p.id}',${i})`)}</div>`}).join('')}</div>`).join(''):'<div class="empty">لا توجد بنود غير مسددة</div>');
+      return head('الحسابات',`<b>إجمالي غير المسدد: ${tot}</b>`)+statsGrid(false)+nav+unpaidBox()+(a.length?a.map(p=>`<div class="box"><div class="row" style="border:0"><b>${e(p.name)}</b><span>${tag(p)}</span></div>${p.charges.filter(c=>!c.paid).map(c=>{const i=p.charges.indexOf(c);return `<div class="row"><span>${e(c.name||'بند')} — ${e(c.amount||0)}</span>${B('سداد',`payCharge('${p.id}',${i})`)}</div>`}).join('')}</div>`).join(''):'<div class="empty">لا توجد بنود غير مسددة</div>');
+    }
+    if(sub==='تقرير الموظفين'){
+      const m=S.rp||'day',d=S.day||today(),mo=S.month||d.slice(0,7);
+      const a=S.pay.filter(x=>m==='all'||(m==='day'?x.date===d:x.date?.startsWith(mo))),g={};
+      a.forEach(x=>{const k=x.by||'غير محدد';g[k]=g[k]||{n:0,t:0};g[k].n++;g[k].t+=+x.amount||0});
+      const tot=a.reduce((z,x)=>z+(+x.amount||0),0);
+      return head('الحسابات')+nav+`<div class="box"><div class="f"><div><label>الفترة</label><select onchange="S.rp=this.value;R()">${[['day','يومي'],['month','شهري'],['all','جميع المتحصلات']].map(([k,n])=>`<option value="${k}" ${m===k?'selected':''}>${n}</option>`).join('')}</select></div>${m==='day'?`<div><label>اليوم</label><input type="date" value="${d}" onchange="S.day=this.value;R()"></div>`:m==='month'?`<div><label>الشهر</label><input type="month" value="${mo}" onchange="S.month=this.value;R()"></div>`:''}</div></div><div class="box">${Object.entries(g).map(([k,v])=>`<div class="row"><span><b>${e(k)}</b> — ${v.n} عملية سداد</span><b style="color:#059669">${v.t}</b></div>`).join('')||'<div class="empty">لا توجد متحصلات</div>'}<div class="row"><b>الإجمالي</b><b style="font-size:20px">${tot}</b></div></div>`;
     }
     const d=S.day||today(),rev=S.pay.filter(x=>x.date===d).reduce((s,x)=>s+(+x.amount||0),0),ex=S.exp.filter(x=>x.date===d).reduce((s,x)=>s+(+x.amount||0),0);
     return head('الحسابات')+statsGrid(false)+nav
@@ -168,20 +178,24 @@ function view(){
   }
   if(v==='set'){const c=S.cfg,i=(k,l)=>`<div><label>${l}</label><input id="c_${k}" value="${e(c[k]||'')}"></div>`;
     return head('الإعدادات')+`<div class="box"><h3 style="margin-top:0">بيانات الطبيب والعيادة</h3><div class="f">${i('doctor','اسم الطبيب')}${i('spec','التخصص')}${i('phone','الهاتف')}${i('wa','واتساب')}${i('email','البريد')}${i('addr','العنوان')}${i('hours','مواعيد العمل')}${i('extra','بيانات إضافية للروشتة')}<div><label>نظام العمل (الشيفت)</label><select id="c_shift">${['صباحي','مسائي','يوم كامل'].map(o=>`<option ${(c.shift||'يوم كامل')===o?'selected':''}>${o}</option>`).join('')}</select></div></div><label>اللوجو / صورة التخصص (الافتراضي: logo.png.png في نفس مجلد index.html)</label><input type="file" accept="image/*" onchange="logo(this)"><div style="margin-top:8px"><img src="${c.logo||'logo.png.png'}" style="height:70px" onerror="this.style.display='none'"> ${c.logo?'<button class="btn s g" onclick="rstLogo()">استعادة الافتراضي</button>':''}</div><br><br><button class="btn" onclick="saveCfg()">حفظ الإعدادات</button></div>`
+    +`<div class="box"><h3 style="margin-top:0">تصميم الروشتة</h3><div class="dz">${DES.map(([k,n])=>`<div class="${(c.rxDesign||'classic')===k?'on':''}" onclick="setDes('${k}')">${n}<br><button class="btn s g" style="margin-top:6px" onclick="event.stopPropagation();previewRx('${k}')">معاينة</button></div>`).join('')}</div>
+    <div class="f"><div><label>لون الروشتة</label><input type="color" id="c_rxColor" value="${c.rxColor||'#0f766e'}"></div><div><label>شفافية صورة الخلفية (%)</label><input type="range" id="c_rxOp" min="3" max="60" value="${c.rxOp??15}"></div><div><label>مقاس ورق الروشتة</label><select id="c_rxSize">${['A4','A5'].map(o=>`<option ${(c.rxSize||'A4')===o?'selected':''}>${o}</option>`).join('')}</select></div></div>
+    <label>صورة خلفية الروشتة (تظهر شفافة خلف النص)</label><input type="file" accept="image/*" onchange="rxBgUp(this)">${S.rxbg.img?`<div style="margin-top:8px"><img src="${S.rxbg.img}" style="height:70px"> <button class="btn s r" onclick="rxBgDel()">حذف الصورة</button></div>`:''}<br><button class="btn" onclick="saveCfg()">حفظ</button></div>`
+    +`<div class="box"><h3 style="margin-top:0">قائمة الفحوصات الخارجية</h3><div>${S.labItems.map((x,i)=>`<span class="chip">${e(x.name)} <span onclick="labRm(${i})">✕</span></span>`).join('')||'<div class="empty">لا توجد فحوصات</div>'}</div><div style="display:flex;gap:6px;margin-top:8px"><input id="labIn" placeholder="اسم فحص جديد"><button class="btn s" onclick="labCat()">＋ إضافة</button></div></div>`
     +`<div class="box"><h3 style="margin-top:0">المستخدمون</h3><div class="f"><div><label>اسم المستخدم</label><input id="uU"></div><div><label>الاسم</label><input id="uN"></div><div><label>كلمة المرور</label><input id="uP"></div><div><label>الصلاحية</label><select id="uR">${Object.entries(ROLE).map(([k,v])=>`<option value="${k}">${v}</option>`)}</select></div></div><br><button class="btn" onclick="addUser()">+ إضافة مستخدم</button>${S.us.map(u=>`<div class="row"><span><b>${e(u.name)}</b> (${e(u.username)}) — ${ROLE[u.role]}</span><span>${B('تعديل',`eu('${u.id}')`,'g')} ${u.id===S.u.id?'':B('حذف',`du('${u.id}')`,'r')}</span></div>`).join('')}</div>`;}
 }
 
 /* ---------- إجراءات ---------- */
 window.mv=async(id,st)=>{const p=S.p.find(x=>x.id===id),u={status:st};if(st==='waiting'){if(!p.num)u.num=await nextNum();if(['done','archive','results'].includes(p.status))u.rex=true}await updateDoc(doc(db,'patients',id),u)};
 window.del=async id=>{if(confirm('حذف الحجز؟'))await deleteDoc(doc(db,'patients',id))};
-window.pay=async id=>{const p=S.p.find(x=>x.id===id),a=+prompt('المبلغ المسدد الآن');if(a>0){await updateDoc(doc(db,'patients',id),{'op.paid':(+p.op.paid||0)+a});await addDoc(collection(db,'payments'),{pid:id,pname:p.name,item:p.op.name||'عملية',amount:a,kind:'op',date:today(),ts:Date.now()})}};
+window.pay=async id=>{const p=S.p.find(x=>x.id===id),a=+prompt('المبلغ المسدد الآن');if(a>0){await updateDoc(doc(db,'patients',id),{'op.paid':(+p.op.paid||0)+a});await addDoc(collection(db,'payments'),{pid:id,pname:p.name,item:p.op.name||'عملية',amount:a,kind:'op',date:today(),ts:Date.now(),by:S.u.name,byId:S.u.id})}};
 window.payCharge=async(pid,idx)=>{
   const p=S.p.find(x=>x.id===pid);if(!p)return;const charges=[...(p.charges||[])],c=charges[idx];if(!c||c.paid)return;
   const method=prompt('طريقة السداد: كاش / محفظة / إنستاباي / فودافون كاش / أخرى','كاش');if(!method)return;
   let ref='';if(method.trim()!=='كاش')ref=prompt('تفاصيل إضافية (رقم العملية/المحفظة)')||'';
   c.paid=true;c.method=method.trim();c.ref=ref;
   await updateDoc(doc(db,'patients',pid),{charges});
-  await addDoc(collection(db,'payments'),{pid,pname:p.name,item:c.name||'بند',amount:+c.amount||0,kind:'charge',method:c.method,ref:c.ref,date:today(),ts:Date.now()});
+  await addDoc(collection(db,'payments'),{pid,pname:p.name,item:c.name||'بند',amount:+c.amount||0,kind:'charge',method:c.method,ref:c.ref,date:today(),ts:Date.now(),by:S.u.name,byId:S.u.id});
 };
 window.exportDay=()=>{
   const d=S.day||today(),pays=S.pay.filter(x=>x.date===d),exps=S.exp.filter(x=>x.date===d);
@@ -203,7 +217,7 @@ window.addContract=async()=>{if(!$('#cN').value)return alert('اكتب اسم ا
 window.delContract=id=>confirm('حذف التعاقد وسجل الحالات المرتبطة به من الشاشة؟')&&deleteDoc(doc(db,'contracts',id));
 window.addRef=async ctId=>{const n=prompt('اسم المريض/الحالة');if(!n)return;const note=prompt('ملاحظات (اختياري)')||'';await addDoc(collection(db,'referrals'),{contractId:ctId,pname:n,date:today(),note})};
 window.delRef=id=>deleteDoc(doc(db,'referrals',id));
-window.saveCfg=async()=>{const o={...S.cfg};['doctor','spec','phone','wa','email','addr','hours','extra','shift'].forEach(k=>o[k]=$('#c_'+k).value);await setDoc(doc(db,'settings','clinic'),o);alert('تم الحفظ')};
+window.saveCfg=async()=>{const o={...S.cfg};['doctor','spec','phone','wa','email','addr','hours','extra','shift','rxColor','rxOp','rxSize'].forEach(k=>o[k]=$('#c_'+k).value);await setDoc(doc(db,'settings','clinic'),o);alert('تم الحفظ')};
 window.logo=inp=>{const f=inp.files[0],im=new Image();im.onload=async()=>{const k=Math.min(1,400/im.width),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);await setDoc(doc(db,'settings','clinic'),{...S.cfg,logo:c.toDataURL('image/png')})};im.src=URL.createObjectURL(f)};
 window.addUser=async()=>{const u=$('#uU').value.trim(),p=$('#uP').value;if(!u||!p)return alert('اكتب اسم المستخدم وكلمة المرور');if(S.us.some(x=>x.username===u))return alert('الاسم مستخدم');await addDoc(collection(db,'users'),{username:u,name:$('#uN').value||u,role:$('#uR').value,ph:await sha(p)})};
 window.eu=async id=>{const u=S.us.find(x=>x.id===id),n=prompt('الاسم',u.name);if(n===null)return;const r=prompt('الصلاحية: admin / doctor / secretary',u.role),p=prompt('كلمة مرور جديدة (اتركها فارغة بدون تغيير)'),o={name:n,role:ROLE[r]?r:u.role};if(p)o.ph=await sha(p);await updateDoc(doc(db,'users',id),o)};
@@ -217,7 +231,7 @@ const isDoc=()=>['admin','doctor'].includes(S.u?.role);
 const TYPES=['كشف جديد','متابعة','عملية','استشارة'],PRE=['booked','confirmed'];
 const CHR=['سكر','ضغط','قلب','كبد','كلى','ربو','حساسية'];
 let opTab=false;
-const tag=p=>p.rex?'<span class="bd" style="--c:#dc2626">🔁 إعادة كشف</span>':(p.type&&p.type!=='كشف جديد'?`<span class="bd" style="--c:#0ea5e9">${e(p.type)}</span>`:'');
+const tag=p=>(p.unpaid?'<span class="bd" style="--c:#dc2626">⚠ لم يتم السداد</span> ':'')+tag0(p);const tag0=p=>p.rex?'<span class="bd" style="--c:#dc2626">🔁 إعادة كشف</span>':(p.type&&p.type!=='كشف جديد'?`<span class="bd" style="--c:#0ea5e9">${e(p.type)}</span>`:'');
 const LOGO=()=>S.cfg.logo||new URL('logo.png.png',location.href).href;
 let mode='',SR=[];
 const RR=()=>mode==='exam'?EM():M();
@@ -231,7 +245,7 @@ window.chgPayLocal=async i=>{
   let ref='';if(method.trim()!=='كاش')ref=prompt('تفاصيل إضافية (رقم العملية/المحفظة)')||'';
   c.paid=true;c.method=method.trim();c.ref=ref;
   await updateDoc(doc(db,'patients',D.id),{charges:D.charges});
-  await addDoc(collection(db,'payments'),{pid:D.id,pname:D.name,item:c.name||'بند',amount:+c.amount||0,kind:'charge',method:c.method,ref:c.ref,date:today(),ts:Date.now()});
+  await addDoc(collection(db,'payments'),{pid:D.id,pname:D.name,item:c.name||'بند',amount:+c.amount||0,kind:'charge',method:c.method,ref:c.ref,date:today(),ts:Date.now(),by:S.u.name,byId:S.u.id});
   RR();
 };
 async function regCharges(){for(const c of(D.charges||[])){if(c.name?.trim()){const k=c.name.trim().toLowerCase().replace(/[\/\s]+/g,'_');await setDoc(doc(db,'chargeItems',k),{name:c.name.trim()},{merge:true})}}}
@@ -264,7 +278,7 @@ function M(){
   const al=D.rex?'🔁 إعادة كشف لمريض تم الكشف عليه من قبل':D.type!=='كشف جديد'?'🔁 نوع الزيارة: '+D.type:'';
   $('#modal').innerHTML=`<div class="mb"><div class="top"><h2>${nw?'حجز جديد':'ملف المريض'} ${D.num?`<span class="bd" style="--c:#7c3aed">رقم ${D.num}</span>`:''} <span class="bd ${D.status}">${ST[D.status]}</span> ${tag(D)}</h2><button class="btn g" onclick="closeM()">✕</button></div>
   ${dr&&D.status==='waiting'&&al?`<div class="alert">${al}${D.prevDiag?`<br>آخر تشخيص: ${e(D.prevDiag)}`:''}</div>`:''}
-  <h4>بيانات الحجز</h4>
+  <h4>بيانات الحجز</h4>${D.bookedBy?`<span class="chip">👤 حجز بواسطة: ${e(D.bookedBy)}</span>`:''}
   <div class="f"><div><label>نوع الزيارة</label><select onchange="setP('type',this.value);M()">${TYPES.map(t=>`<option ${D.type===t?'selected':''}>${t}</option>`).join('')}</select></div></div>
   ${nw&&D.type!=='كشف جديد'?`<label>ابحث عن المريض بالاسم أو الهاتف</label><input placeholder="ابدأ الكتابة..." oninput="srch(this.value)"><div id="sr"></div>`:''}
   <div class="f">${I('name','الاسم')}${I('phone','الهاتف')}${I('date','تاريخ الحجز','date')}${I('time','الوقت','time')}</div>
@@ -272,8 +286,8 @@ function M(){
   ${rec?`<h4>${mode==='arrive'?'استكمال بيانات الاستقبال':'بيانات الاستقبال'}</h4><div class="f">${I('age','السن','number')}<div><label>النوع</label><select onchange="setP('gender',this.value)"><option></option>${['ذكر','أنثى'].map(g=>`<option ${D.gender===g?'selected':''}>${g}</option>`).join('')}</select></div></div>
   <label>التاريخ المرضي / ملاحظات الاستقبال</label><textarea oninput="setP('hist',this.value)">${e(D.hist)}</textarea>
   <label>المستندات (تُحفظ على Google Drive)</label><input type="file" multiple onchange="up(this)">${D.files.map((f,i)=>`<div class="row"><a href="${e(f.url)}" target="_blank">📎 ${e(f.name)}</a><button class="btn s r" onclick="fdel(${i})">✕</button></div>`).join('')}
-  <label>تكلفة الزيارة (اختياري — بند واحد لتخصص واحد، أو أكثر من بند مثل الأسنان)</label>${chargeRows()}`:''}
-  ${dr?`<h4>التشخيص</h4><textarea oninput="setP('diag',this.value)">${e(D.diag)}</textarea><div class="acts" style="margin-top:10px"><button class="btn" onclick="openRx()">💊 الروشتة (${D.rx.filter(r=>r.drug).length} دواء)</button></div>
+  ${S.u.role==='doctor'?'':`<label>تكلفة الزيارة (اختياري — بند واحد لتخصص واحد، أو أكثر من بند مثل الأسنان)</label>${chargeRows()}`}`:''}
+  ${dr?`<h4>التشخيص</h4><textarea oninput="setP('diag',this.value)">${e(D.diag)}</textarea><div class="acts" style="margin-top:10px"><button class="btn" onclick="openRx()">💊 الروشتة (${D.rx.filter(r=>r.drug).length} دواء)</button><button class="btn g" onclick="openLab()">🔬 فحوصات خارجية (${(D.labs||[]).filter(Boolean).length})</button></div>
   <h4>انتظار نتائج</h4><div class="f"><div><label>النوع</label><select onchange="setP('res.type',this.value);M()"><option></option>${['تحاليل','أشعة','أخرى'].map(g=>`<option ${D.res.type===g?'selected':''}>${g}</option>`).join('')}</select></div>${I('res.note','تفاصيل المطلوب')}</div>
   <h4>عملية جراحية (تُحوَّل للحسابات)</h4><div class="f">${I('op.name','اسم العملية')}${I('op.type','نوع العملية')}${I('op.total','التكلفة','number')}${I('op.paid','المدفوع','number')}${I('op.date','موعد العملية','date')}</div>`:''}
   <div class="acts" style="margin-top:20px;border-top:1px solid var(--line);padding-top:14px">
@@ -286,6 +300,7 @@ window.M=M;
 window.sv=async st=>{
   if(!D.name)return alert('اكتب اسم المريض');
   await regCharges();
+  if(!D.id&&!D.bookedBy){D.bookedBy=S.u.name;D.bookedById=S.u.id}
   if(st)D.status=st;if(D.status==='waiting'&&!D.num)D.num=await nextNum();if(st==='done'){D.doneAt=Date.now();D.rex=false}
   const {id,...x}=D;if(id)await setDoc(doc(db,'patients',id),x);else await addDoc(collection(db,'patients'),x);closeM();
 };
@@ -300,7 +315,7 @@ window.up=async inp=>{
 window.detail=id=>{
   const p=S.p.find(x=>x.id===id);
   $('#modal').innerHTML=`<div class="mb"><div class="top"><h2>تفاصيل الحجز والاستقبال</h2><button class="btn g" onclick="closeM()">✕</button></div>
-  <div class="f"><div><label>الاسم</label><div>${e(p.name)}</div></div><div><label>الهاتف</label><div>${e(p.phone||'-')}</div></div><div><label>نوع الزيارة</label><div>${e(p.type||'-')}</div></div><div><label>تاريخ الحجز</label><div>${e(p.date||'-')} ${e(p.time||'')}</div></div><div><label>السن</label><div>${e(p.age||'-')}</div></div><div><label>النوع</label><div>${e(p.gender||'-')}</div></div></div>
+  <div class="f"><div><label>الاسم</label><div>${e(p.name)}</div></div><div><label>الهاتف</label><div>${e(p.phone||'-')}</div></div><div><label>نوع الزيارة</label><div>${e(p.type||'-')}</div></div><div><label>تاريخ الحجز</label><div>${e(p.date||'-')} ${e(p.time||'')}</div></div><div><label>السن</label><div>${e(p.age||'-')}</div></div><div><label>النوع</label><div>${e(p.gender||'-')}</div></div><div><label>حجز بواسطة (الاستقبال)</label><div>${e(p.bookedBy||'-')}</div></div></div>
   <label>ملاحظات الحجز</label><div>${e(p.notes||'-')}</div>
   <label>التاريخ المرضي / ملاحظات الاستقبال</label><div>${e(p.hist||'-')}</div>
   ${p.files?.length?`<label>المستندات</label>${p.files.map(f=>`<div class="row"><a href="${e(f.url)}" target="_blank">📎 ${e(f.name)}</a></div>`).join('')}`:''}
@@ -322,7 +337,7 @@ window.printRxOnly=()=>pr();
 window.saveOp=async()=>{if(D.id)await updateDoc(doc(db,'patients',D.id),{op:D.op});alert('تم حفظ بيانات العملية، وستظهر في شاشة العمليات والحسابات')};
 window.examSave=async st=>{
   await regCharges();
-  const u={hist:D.hist,diag:D.diag,enotes:D.enotes,chronic:D.chronic,charges:D.charges||[],actions:D.actions||[]};
+  const u={hist:D.hist,diag:D.diag,enotes:D.enotes,chronic:D.chronic,actions:D.actions||[],unpaid:!!D.unpaid,unpaidNote:D.unpaidNote||'',unpaidBy:D.unpaidBy||''};
   if(st){u.status=st;if(st==='done'){u.doneAt=Date.now();u.rex=false}}
   if(D.id)await updateDoc(doc(db,'patients',D.id),u);
   if(st)closeM();else alert('تم الحفظ');
@@ -332,13 +347,15 @@ function EM(){
   const hasRx=D.rx.filter(r=>r.drug).length;
   $('#modal').innerHTML=`<div class="mb"><div class="top"><h2>كشف المريض: ${e(D.name)} ${D.num?`<span class="bd" style="--c:#7c3aed">رقم ${D.num}</span>`:''} ${tag(D)}</h2><button class="btn g" onclick="closeM()">✕</button></div>
   ${al?`<div class="alert">${al}${D.prevDiag?`<br>آخر تشخيص: ${e(D.prevDiag)}`:''}</div>`:''}
+  ${D.bookedBy?`<span class="chip">👤 حجز بواسطة: ${e(D.bookedBy)}</span>`:''}
   <label>التاريخ المرضي</label><textarea oninput="setP('hist',this.value)">${e(D.hist)}</textarea>
   <label>التشخيص</label><textarea oninput="setP('diag',this.value)">${e(D.diag)}</textarea>
   <label>ملاحظات</label><textarea oninput="setP('enotes',this.value)">${e(D.enotes)}</textarea>
   <label>أمراض مزمنة</label><div style="display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 10px">${CHR.map(c=>`<label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" style="width:auto" ${D.chronic.includes(c)?'checked':''} onchange="toggleChr('${c}')">${c}</label>`).join('')}</div>
   <h4>إجراءات مطلوبة بالعيادة</h4>${actionsBlock()}
-  <h4>بنود تكلفة إضافية (اختياري)</h4>${chargeRows()}
+  <h4>السداد</h4><label style="display:flex;gap:6px;align-items:center;font-size:14px;color:var(--ink)"><input type="checkbox" style="width:auto" ${D.unpaid?'checked':''} onchange="setP('unpaid',this.checked);setP('unpaidBy',S.u.name);EM()">⚠ كشف بدون سداد (لم يتم السداد)</label>${D.unpaid?`<input placeholder="سبب / ملاحظة (اختياري)" value="${e(D.unpaidNote||'')}" oninput="setP('unpaidNote',this.value)">`:''}
   <h4>الروشتة</h4>${hasRx?`<div class="acts">${B('✏ تعديل','openRx()')}${B('🖨 طباعة','printRxOnly()')}${B('🗑 حذف','delRx()','r')}</div>`:`<button class="btn g" onclick="openRx()">＋ إضافة روشتة</button>`}
+  <h4>فحوصات خارجية</h4><button class="btn g" onclick="openLab()">🔬 فحوصات خارجية (${(D.labs||[]).filter(Boolean).length})</button>
   <h4 style="cursor:pointer" onclick="toggleOpTab()">${opTab?'▾':'◂'} تحديد عملية جراحية</h4>${opTab?`<div class="f">${I('op.name','اسم العملية')}${I('op.type','نوع العملية')}${I('op.total','التكلفة','number')}${I('op.paid','المدفوع','number')}${I('op.date','موعد العملية','date')}</div><button class="btn s" onclick="saveOp()">حفظ العملية</button>`:''}
   <div class="acts" style="margin-top:20px;border-top:1px solid var(--line);padding-top:14px">
   <button class="btn" onclick="examSave()">💾 حفظ</button>
@@ -371,15 +388,48 @@ window.saveRx=async()=>{
 };
 window.saveRxClose=async()=>{await saveRx();closeRx()};
 window.printRx=async()=>{await saveRx();pr()};
-window.pr=()=>{
-  const c=S.cfg,w=open('','_blank');
-  w.document.write(`<html dir="rtl"><head><meta charset="utf-8"><title>روشتة</title><style>body{font-family:Cairo,Tahoma,sans-serif;margin:0;padding:30px;color:#12262a}.h{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #0f766e;padding-bottom:12px}.h img{height:80px;max-width:220px;object-fit:contain}.h h1{margin:0;color:#0f766e}.p{display:flex;justify-content:space-between;background:#eef5f3;padding:10px 14px;margin:14px 0;border-radius:8px}.rx{font-size:44px;color:#0f766e;font-weight:800}li{margin:12px 0;font-size:18px}li small{display:block;color:#63777a;font-size:14px}.f{position:fixed;bottom:20px;right:30px;left:30px;border-top:2px solid #0f766e;padding-top:8px;text-align:center;font-size:13px;color:#63777a}</style></head><body>
-  <div class="h"><div><h1>${e(c.doctor||'')}</h1><div>${e(c.spec||'')}</div><div style="font-size:13px">${e(c.extra||'')}</div></div><img src="${LOGO()}" onerror="this.style.display='none'"></div>
-  <div class="p"><span>المريض: <b>${e(D.name)}</b>${D.age?' — '+e(D.age)+' سنة':''}</span><span>التاريخ: ${today()}${D.num?' — رقم '+D.num:''}</span></div>
-  ${D.diag?`<div><b>التشخيص:</b> ${e(D.diag)}</div>`:''}<div class="rx">℞</div><ol>${D.rx.filter(r=>r.drug).map(r=>`<li><b>${e(r.drug)}</b> — ${e(r.times)}<small>${e(r.note)}</small></li>`).join('')}</ol>${D.rxNote?`<p><b>توصيات:</b> ${e(D.rxNote)}</p>`:''}
-  <div class="f">${[c.addr,c.phone&&'☎ '+c.phone,c.wa&&'واتساب '+c.wa,c.email,c.hours].filter(Boolean).map(e).join(' • ')}</div><script>onload=()=>setTimeout(print,400)<\/script></body></html>`);
-  w.document.close();
-};
+const DES=[['classic','كلاسيك'],['modern','عصري'],['framed','مؤطر']];
+function printHTML(body,size,des){
+ const c=S.cfg,col=c.rxColor||'#0f766e',bg=S.rxbg.img,op=(c.rxOp??15)/100,d=des||c.rxDesign||'classic',sz=size||c.rxSize||'A4',w=open('','_blank');
+ w.document.write(`<html dir="rtl"><head><meta charset="utf-8"><title>طباعة</title><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet"><style>
+ @page{size:${sz};margin:0}*{box-sizing:border-box}body{margin:0;font-family:Cairo,Tahoma,sans-serif;color:#12262a;-webkit-print-color-adjust:exact;print-color-adjust:exact;--c:${col}}
+ .bg{position:fixed;inset:0;background:${bg?`url("${bg}") center/contain no-repeat`:'none'};opacity:${op};z-index:0}
+ .pg{position:relative;z-index:1;padding:10mm 10mm 24mm}.h{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:3px solid var(--c);padding-bottom:8px}.h img{height:${sz==='A5'?'55px':'75px'};max-width:180px;object-fit:contain}.h h1{margin:0;color:var(--c);font-size:22px}.h div{font-size:12px}
+ .p{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;background:color-mix(in srgb,var(--c) 10%,#fff);padding:8px 12px;margin:10px 0;border-radius:8px;font-size:13px}
+ .rx{font-size:40px;color:var(--c);font-weight:800;line-height:1}ol{padding-right:20px}li{margin:9px 0;font-size:16px}li small{display:block;color:#63777a;font-size:12px}
+ .f{position:fixed;bottom:0;right:0;left:0;padding:7px 10mm;border-top:2px solid var(--c);text-align:center;font-size:11px;color:#63777a;z-index:1}
+ .modern .h{background:var(--c);color:#fff;border:0;border-radius:0 0 14px 14px;margin:-10mm -10mm 0;padding:14px 10mm}.modern .h h1{color:#fff}.modern .h img{background:#fff;border-radius:10px;padding:4px}.modern li{background:#fff9;border-right:4px solid var(--c);padding:6px 10px;border-radius:6px;list-style-position:inside}.modern .f{background:var(--c);color:#fff;border:0}
+ .framed .pg{margin:6mm;border:2px double var(--c);min-height:calc(100vh - 12mm);padding:8mm 8mm 22mm}.framed .h{flex-direction:column;text-align:center;border-bottom:1px solid var(--c)}.framed .f{right:6mm;left:6mm;bottom:6mm}
+ </style></head><body class="${d}"><div class="bg"></div><div class="pg"><div class="h"><div><h1>${e(c.doctor||'')}</h1><div>${e(c.spec||'')}</div><div>${e(c.extra||'')}</div></div><img src="${LOGO()}" onerror="this.style.display='none'"></div>${body}</div>
+ <div class="f">${[c.addr,c.phone&&'☎ '+c.phone,c.wa&&'واتساب '+c.wa,c.email,c.hours].filter(Boolean).map(e).join(' • ')}</div><script>onload=()=>setTimeout(print,600)<\/script></body></html>`);
+ w.document.close();
+}
+const pinfo=()=>`<div class="p"><span>المريض: <b>${e(D.name)}</b>${D.age?' — '+e(D.age)+' سنة':''}</span><span>${today()}${D.num?' — رقم '+D.num:''}</span></div>`;
+window.pr=des=>printHTML(pinfo()+(D.diag?`<div style="font-size:13px"><b>التشخيص:</b> ${e(D.diag)}</div>`:'')+`<div class="rx">℞</div><ol>${D.rx.filter(r=>r.drug).map(r=>`<li><b>${e(r.drug)}</b> — ${e(r.times)}<small>${e(r.note)}</small></li>`).join('')}</ol>${D.rxNote?`<p><b>توصيات:</b> ${e(D.rxNote)}</p>`:''}`,null,typeof des==='string'?des:null);
+window.previewRx=des=>{D={name:'اسم المريض',age:'35',num:1,diag:'تشخيص تجريبي',rx:[{drug:'Augmentin 1g',times:'مرتين يومياً',note:'بعد الأكل'},{drug:'Panadol',times:'عند اللزوم',note:''}],rxNote:'الراحة وشرب السوائل'};pr(des);D=null};
+const labBody=()=>pinfo()+`<h3 style="color:var(--c);margin:8px 0">🔬 فحوصات خارجية مطلوبة</h3><ol>${D.labs.filter(Boolean).map(l=>`<li>${e(l)}</li>`).join('')}</ol>${D.labNote?`<p><b>ملاحظات:</b> ${e(D.labNote)}</p>`:''}`;
+const labKey=v=>v.toLowerCase().replace(/[\/\s]+/g,'_');
+window.labNew=v=>setDoc(doc(db,'labItems',labKey(v)),{name:v},{merge:true});
+window.openLab=()=>{D.labs=D.labs||[];if(!D.labs.length)D.labs.push('');LB();$('#rxm').style.display='flex'};
+function LB(){
+ const opts=v=>`<option value="">— اختر الفحص —</option>${[...new Set([...S.labItems.map(x=>x.name),...(v&&!S.labItems.some(x=>x.name===v)?[v]:[])])].map(n=>`<option ${n===v?'selected':''}>${e(n)}</option>`).join('')}<option value="__new">➕ إضافة فحص جديد...</option>`;
+ $('#rxm').innerHTML=`<div class="mb"><div class="top"><h2>🔬 فحوصات خارجية — ${e(D.name)}</h2><button class="btn g" onclick="closeLab()">✕</button></div>${D.labs.map((v,i)=>`<div class="lr"><select onchange="labPick(${i},this)">${opts(v)}</select><button class="btn s r" onclick="labDel(${i})">✕</button></div>`).join('')}<button class="btn" onclick="labAdd()">＋ فحص آخر</button><label>ملاحظات</label><textarea oninput="setP('labNote',this.value)">${e(D.labNote)}</textarea><div class="acts" style="margin-top:16px"><button class="btn g" onclick="saveLabClose()">💾 حفظ وإغلاق</button><button class="btn" onclick="printLab()">🖨 طباعة البيان (نصف A4)</button></div></div>`;
+}
+window.labPick=async(i,el)=>{let v=el.value;if(v==='__new'){v=(prompt('اسم الفحص الجديد')||'').trim();if(v)await labNew(v)}D.labs[i]=v;LB()};
+window.labAdd=()=>{D.labs.push('');LB()};window.labDel=i=>{D.labs.splice(i,1);if(!D.labs.length)D.labs.push('');LB()};
+window.saveLab=async()=>{D.labs=D.labs.filter(Boolean);if(D.id)await updateDoc(doc(db,'patients',D.id),{labs:D.labs,labNote:D.labNote||''})};
+window.closeLab=()=>{$('#rxm').style.display='none';mode==='exam'?EM():M()};
+window.saveLabClose=async()=>{await saveLab();closeLab()};
+window.printLab=async()=>{await saveLab();printHTML(labBody(),'A5')};
+window.setDes=k=>setDoc(doc(db,'settings','clinic'),{...S.cfg,rxDesign:k});
+window.labCat=async()=>{const v=$('#labIn').value.trim();if(v)await labNew(v)};
+window.labRm=i=>deleteDoc(doc(db,'labItems',labKey(S.labItems[i].name)));
+window.rxBgDel=()=>setDoc(doc(db,'settings','rxbg'),{});
+window.rxBgUp=inp=>{const im=new Image();im.onload=async()=>{for(const m of [1000,700,500]){const k=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);for(const t of ['image/png','image/webp']){const u=c.toDataURL(t,.85);if(u.length<900000)return setDoc(doc(db,'settings','rxbg'),{img:u})}}alert('الصورة كبيرة جدًا')};im.src=URL.createObjectURL(inp.files[0])};
+
+const unpaidBox=()=>{const u=S.p.filter(p=>p.unpaid);return u.length?`<div class="box"><h3 style="margin-top:0">⚠ حالات تم الكشف عليها بدون سداد</h3>${u.map(p=>`<div class="row"><span><b>${e(p.name)}</b> — ${e(p.date||'')}${p.unpaidBy?' — بقرار: '+e(p.unpaidBy):''}${p.unpaidNote?'<br><small>'+e(p.unpaidNote)+'</small>':''}</span><span>${B('سداد',`payUnp('${p.id}')`)} ${B('إعفاء',`waive('${p.id}')`,'g')}</span></div>`).join('')}</div>`:''};
+window.payUnp=async id=>{const p=S.p.find(x=>x.id===id),a=+prompt('المبلغ المسدد');if(!(a>0))return;const m=prompt('طريقة السداد','كاش')||'كاش';await addDoc(collection(db,'payments'),{pid:id,pname:p.name,item:'كشف (سداد متأخر)',amount:a,kind:'charge',method:m,date:today(),ts:Date.now(),by:S.u.name,byId:S.u.id});await updateDoc(doc(db,'patients',id),{unpaid:false})};
+window.waive=id=>confirm('إعفاء الحالة من السداد؟')&&updateDoc(doc(db,'patients',id),{unpaid:false,waived:true});
 
 boot();
 </script></body></html>
