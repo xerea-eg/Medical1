@@ -44,6 +44,7 @@ textarea{min-height:70px;resize:vertical}label{font-size:12px;color:var(--mut);d
 .confirmed{--c:#059669}.stp{display:flex;flex:1;gap:4px;flex-wrap:nowrap}.stp button{flex:1;border:0;border-radius:8px;padding:7px 2px;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap}
 .st1{background:#fef3c7;color:#b45309}.st1.on{background:#f59e0b;color:#fff}.st2{background:#d1fae5;color:#047857}.st2.on{background:#059669;color:#fff}.st3{background:#dbeafe;color:#1d4ed8}
 .kp{border-radius:14px!important;box-shadow:0 4px 12px #0002!important}.kp .kl{color:#ffffffd9!important}.kp .kv{color:#fff!important}
+.main>.top{position:sticky;top:0;z-index:3;background:var(--bg);padding:8px 0;margin-bottom:8px}a.btn{text-decoration:none;display:inline-flex;align-items:center}
 </style></head><body><div id="app"></div><div id="modal"></div><div id="rxm"></div>
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -122,6 +123,8 @@ const shOpts=()=>{const d=S.docs.find(x=>x.id===D.docId);return (d?.shifts||[]).
 const myPt=p=>!(S.u.role==='doctor'&&S.u.docId)||p.docId===S.u.docId;
 const stp=p=>`<div class="stp"><button class="st1 ${p.status==='booked'?'on':''}" onclick="mv('${p.id}','booked')">محجوز</button><button class="st2 ${p.status==='confirmed'?'on':''}" onclick="mv('${p.id}','confirmed')">مؤكد</button><button class="st3" onclick="openP('${p.id}','arrive')">بالعيادة</button></div>`;
 const finOpts=()=>[...new Set(['مصروف','مرتبات','إيجار','كهرباء','سداد قسط','يومية عامل',...S.finTypes.map(x=>x.name)])].map(n=>`<option ${(S.fy||'مصروف')===n?'selected':''}>${e(n)}</option>`).join('')+'<option value="__new">➕ إضافة نوع جديد...</option>';
+const wa=n=>{let d=(n||'').replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);else if(d.startsWith('0'))d='2'+d;return d};
+const pb=p=>p.phone?`<a class="btn s" style="background:#0284c7" href="tel:${e(p.phone)}">📞 اتصال</a><a class="btn s" style="background:#16a34a" target="_blank" href="https://wa.me/${wa(p.phone)}">💬 واتساب</a>`:'';
 const list=(st)=>S.p.filter(p=>st.includes(p.status));
 function card(p,acts=''){
   const cls=p.cls||p.status;
@@ -145,7 +148,7 @@ function statsGrid(hide){
 function view(){
   const v=S.v,srt=(a,k)=>[...a].sort((x,y)=>(x[k]||'')>(y[k]||'')?1:-1);
   const head=(t,btn='')=>`<div class="top"><h2 style="margin:0">${t}</h2>${btn}</div>`;
-  if(v==='book')return head('الحجوزات',`<button class="btn" onclick="openP('new')">+ حجز جديد</button>`)+grid(srt(list(['booked','confirmed']),'date'),p=>card(p,stp(p)+B('حذف',`del('${p.id}')`,'r')));
+  if(v==='book')return head('الحجوزات',`<button class="btn" onclick="openP('new')">+ حجز جديد</button>`)+grid(srt(list(['booked','confirmed']),'date'),p=>card(p,stp(p)+pb(p)+B('حذف',`del('${p.id}')`,'r')));
   if(v==='waiting')return head('قائمة الانتظار — شاشة الطبيب')+grid(srt(list(['waiting']).filter(myPt),'num').sort((a,b)=>(a.num||0)-(b.num||0)),p=>examCard(p));
   if(v==='results')return head('انتظار نتائج (تحاليل / أشعة / أخرى)')+grid(list(['results']).filter(myPt),p=>card({...p,badge:p.res?.type||'نتائج'},B('وصلت النتيجة — إعادة للانتظار',`mv('${p.id}','waiting')`)));
   if(v==='done')return head('تم الكشف')+grid(list(['done']).filter(myPt),p=>card(p,B('إعادة كشف',`mv('${p.id}','waiting')`)+B('أرشفة',`mv('${p.id}','archive')`,'g')));
@@ -158,7 +161,7 @@ function view(){
     const pays=S.pay.filter(x=>inR(x.date)&&(!em||x.by===em)),rev=sm(pays,'amount'),exps=em?0:sm(S.exp.filter(x=>inR(x.date)),'amount'),by={};
     pays.forEach(x=>{const k=x.by||'غير محدد';by[k]=(by[k]||0)+(+x.amount||0)});
     const lab=f===to?(f===t?'اليوم':f):f+' ← '+to;
-    return head('الرئيسية')+`<div class="box"><div class="f"><div><label>من</label><input type="date" value="${f}" onchange="S.df=this.value;S.dt=S.dt&&S.dt>=this.value?S.dt:this.value;R()"></div><div><label>إلى</label><input type="date" value="${to}" onchange="S.dt=this.value;R()"></div><div><label>الموظف</label><select onchange="S.de=this.value;R()"><option value="">كل الموظفين</option>${emps.map(n=>`<option ${em===n?'selected':''}>${e(n)}</option>`).join('')}</select></div></div><div class="acts"><button class="btn s g" onclick="S.df=S.dt='';R()">اليوم</button><button class="btn s g" onclick="S.df='${t.slice(0,7)}-01';S.dt='${t}';R()">هذا الشهر</button></div></div>`
+    return head('الرئيسية')+`<div class="box"><div class="f"><div><label>من</label><input type="date" value="${f}" onchange="S.df=this.value;S.dt=S.dt&&S.dt>=this.value?S.dt:this.value;R()"></div><div><label>إلى</label><input type="date" value="${to}" onchange="S.dt=this.value;R()"></div></div><div style="display:flex;gap:6px;align-items:flex-end;margin-top:8px"><div style="flex:1"><label>الموظف</label><select onchange="S.de=this.value;R()"><option value="">كل الموظفين</option>${emps.map(n=>`<option ${em===n?'selected':''}>${e(n)}</option>`).join('')}</select></div><button class="btn s g" onclick="S.df=S.dt='';R()">اليوم</button><button class="btn s g" onclick="S.df='${t.slice(0,7)}-01';S.dt='${t}';R()">هذا الشهر</button></div></div>`
     +`<div class="kg">${kpi('حجوزات '+lab,Pn,'#2563eb')}${kpi('في الانتظار الآن',list(['waiting']).length,'#f59e0b')}${kpi('تم الكشف',done,'#059669')}${kpi('الإيراد',rev,'#0d9488')}${em?'':kpi('المصروف',exps,'#dc2626')+kpi('الصافي',rev-exps,'#7c3aed')}${kpi('عمليات السداد',pays.length,'#475569')}</div>`
     +(!em&&Object.keys(by).length?`<div class="box"><b>الإيراد حسب الموظف — ${lab}</b>${Object.entries(by).map(([k,v])=>`<div class="row"><span>${e(k)}</span><b>${v}</b></div>`).join('')}</div>`:'');
   }
@@ -298,22 +301,22 @@ window.srch=q=>{
   if(q)[...S.p].sort((a,b)=>(b.date||'')>(a.date||'')?1:-1).forEach(p=>{const k=p.name+'|'+p.phone;if(!seen.has(k)&&((p.name||'').includes(q)||(p.phone||'').includes(q))){seen.add(k);SR.push(p)}});
   $('#sr').innerHTML=SR.slice(0,6).map((p,i)=>`<div class="row" style="cursor:pointer" onclick="pick(${i})"><span><b>${e(p.name)}</b> ${e(p.phone||'')} ${p.age?'— '+e(p.age)+' سنة':''}</span><span class="btn s">اختيار</span></div>`).join('')||(q?'<div class="empty" style="padding:8px">لا توجد نتائج</div>':'');
 };
-window.pick=i=>{const p=SR[i];Object.assign(D,{name:p.name,phone:p.phone||'',age:p.age||'',gender:p.gender||'',hist:p.hist||'',prevDiag:p.diag||''});M()};
+window.pick=i=>{const p=SR[i];Object.assign(D,{name:p.name,phone:p.phone||'',phone2:p.phone2||'',addr:p.addr||'',age:p.age||'',gender:p.gender||'',hist:p.hist||'',prevDiag:p.diag||''});M()};
 function M(){
   const rec=mode==='arrive'||!PRE.includes(D.status),dr=isDoc()&&!PRE.includes(D.status),nw=!D.id;
   const al=D.rex?'🔁 إعادة كشف لمريض تم الكشف عليه من قبل':D.type!=='كشف جديد'?'🔁 نوع الزيارة: '+D.type:'';
   $('#modal').innerHTML=`<div class="mb"><div class="top"><h2>${nw?'حجز جديد':'ملف المريض'} ${D.num?`<span class="bd" style="--c:#7c3aed">رقم ${D.num}</span>`:''} <span class="bd ${D.status}">${ST[D.status]}</span> ${tag(D)}</h2><button class="btn g" onclick="closeM()">✕</button></div>
   ${dr&&D.status==='waiting'&&al?`<div class="alert">${al}${D.prevDiag?`<br>آخر تشخيص: ${e(D.prevDiag)}`:''}</div>`:''}
   <h4>بيانات الحجز</h4>${D.bookedBy?`<span class="chip">👤 حجز بواسطة: ${e(D.bookedBy)}</span>`:''}
-  <div class="f"><div><label>نوع الزيارة</label><select onchange="setP('type',this.value);M()">${TYPES.map(t=>`<option ${D.type===t?'selected':''}>${t}</option>`).join('')}</select></div><div><label>الطبيب</label><select onchange="setP('docId',this.value);setP('shift','');M()"><option value="">—</option>${docOpts(D.docId)}</select></div><div><label>الشيفت</label><select onchange="setP('shift',this.value)"><option value="">—</option>${shOpts()}</select></div></div>
+  <div class="f"><div><label>نوع الزيارة</label><select onchange="setP('type',this.value);M()">${TYPES.map(t=>`<option ${D.type===t?'selected':''}>${t}</option>`).join('')}</select></div><div><label>الطبيب</label><select onchange="setP('docId',this.value);setP('shift','');M()"><option value="">—</option>${docOpts(D.docId)}</select></div></div>
   ${nw&&D.type!=='كشف جديد'?`<label>ابحث عن المريض بالاسم أو الهاتف</label><input placeholder="ابدأ الكتابة..." oninput="srch(this.value)"><div id="sr"></div>`:''}
-  <div class="f">${I('name','الاسم')}${I('phone','الهاتف')}${I('date','تاريخ الحجز','date')}${I('time','الوقت','time')}</div>
+  <div class="f">${I('name','الاسم')}${I('phone','الهاتف')}${I('date','تاريخ الحجز','date')}${I('time','الوقت','time')}${I('phone2','رقم تليفون آخر')}${I('addr','العنوان')}</div>
   <label>ملاحظات الحجز</label><textarea oninput="setP('notes',this.value)">${e(D.notes)}</textarea>
   ${rec?`<h4>${mode==='arrive'?'استكمال بيانات الاستقبال':'بيانات الاستقبال'}</h4><div class="f">${I('age','السن','number')}<div><label>النوع</label><select onchange="setP('gender',this.value)"><option></option>${['ذكر','أنثى'].map(g=>`<option ${D.gender===g?'selected':''}>${g}</option>`).join('')}</select></div></div>
   <label>التاريخ المرضي / ملاحظات الاستقبال</label><textarea oninput="setP('hist',this.value)">${e(D.hist)}</textarea>
   <label>المستندات (تُحفظ على Google Drive)</label><input type="file" multiple onchange="up(this)">${D.files.map((f,i)=>`<div class="row"><a href="${e(f.url)}" target="_blank">📎 ${e(f.name)}</a><button class="btn s r" onclick="fdel(${i})">✕</button></div>`).join('')}
   ${S.u.role==='doctor'?'':`<label>تكلفة الزيارة (اختياري — بند واحد لتخصص واحد، أو أكثر من بند مثل الأسنان)</label>${chargeRows()}`}`:''}
-  ${dr?`<h4>التشخيص</h4><textarea oninput="setP('diag',this.value)">${e(D.diag)}</textarea><div class="acts" style="margin-top:10px"><button class="btn" onclick="openRx()">💊 الروشتة (${D.rx.filter(r=>r.drug).length} دواء)</button><button class="btn g" onclick="openLab()">🔬 فحوصات خارجية (${(D.labs||[]).filter(Boolean).length})</button></div>
+  ${dr?`<h4>التشخيص</h4><textarea oninput="setP('diag',this.value)">${e(D.diag)}</textarea><div class="acts" style="margin-top:10px">${D.rx.filter(r=>r.drug).length?B('✏ تعديل الروشتة','openRx()')+B('🗑 حذف الروشتة','delRx()','r'):B('＋ إضافة روشتة','openRx()')}<button class="btn g" onclick="openLab()">🔬 فحوصات خارجية (${(D.labs||[]).filter(Boolean).length})</button></div>
   <h4>انتظار نتائج</h4><div class="f"><div><label>النوع</label><select onchange="setP('res.type',this.value);M()"><option></option>${['تحاليل','أشعة','أخرى'].map(g=>`<option ${D.res.type===g?'selected':''}>${g}</option>`).join('')}</select></div>${I('res.note','تفاصيل المطلوب')}</div>
   <h4>عملية جراحية (تُحوَّل للحسابات)</h4><div class="f">${I('op.name','اسم العملية')}${I('op.type','نوع العملية')}${I('op.total','التكلفة','number')}${I('op.paid','المدفوع','number')}${I('op.date','موعد العملية','date')}</div>`:''}
   <div class="acts" style="margin-top:20px;border-top:1px solid var(--line);padding-top:14px">
@@ -358,7 +361,7 @@ window.openExam=async id=>{
 };
 window.toggleOpTab=()=>{opTab=!opTab;EM()};
 window.toggleChr=c=>{D.chronic=D.chronic.includes(c)?D.chronic.filter(x=>x!==c):[...D.chronic,c];EM()};
-window.delRx=async()=>{if(!confirm('حذف الروشتة؟'))return;D.rx=[];D.rxNote='';if(D.id)await updateDoc(doc(db,'patients',D.id),{rx:[],rxNote:''});EM()};
+window.delRx=async()=>{if(!confirm('حذف الروشتة؟'))return;D.rx=[];D.rxNote='';if(D.id)await updateDoc(doc(db,'patients',D.id),{rx:[],rxNote:''});RR()};
 window.printRxOnly=()=>pr();
 window.saveOp=async()=>{if(D.id)await updateDoc(doc(db,'patients',D.id),{op:D.op});alert('تم حفظ بيانات العملية، وستظهر في شاشة العمليات والحسابات')};
 window.examSave=async st=>{
@@ -378,7 +381,7 @@ function EM(){
   <label>التشخيص</label><textarea oninput="setP('diag',this.value)">${e(D.diag)}</textarea>
   <label>ملاحظات</label><textarea oninput="setP('enotes',this.value)">${e(D.enotes)}</textarea>
   <div class="acts" style="margin-top:12px">${B(`🔬 فحوصات خارجية (${nl})`,'openLab()','g')}${B(`📋 إجراءات مطلوبة (${na})`,'openAct()','g')}${B('🔪 إجراء عملية','openOp()','g')}</div>
-  <h4>الروشتة</h4>${hasRx?`<div class="acts">${B('✏ تعديل','openRx()')}${B('🖨 طباعة','printRxOnly()')}${B('🗑 حذف','delRx()','r')}</div>`:`<button class="btn g" onclick="openRx()">＋ إضافة روشتة</button>`}
+  <h4>الروشتة</h4>${hasRx?`<div class="acts">${B('✏ تعديل','openRx()')}${B('🗑 حذف','delRx()','r')}</div>`:`<button class="btn g" onclick="openRx()">＋ إضافة روشتة</button>`}
   <div class="acts" style="margin-top:20px;border-top:1px solid var(--line);padding-top:14px">
   <button class="btn" onclick="examSave()">💾 حفظ</button>
   <button class="btn" style="background:#059669" onclick="examSave('done')">✔ تم الكشف</button>
@@ -460,7 +463,7 @@ window.closePop=async()=>{if(D&&D.id&&pop==='act')await updateDoc(doc(db,'patien
 function AC(){POP(PH('📋 إجراءات مطلوبة بالعيادة')+actionsBlock()+'<div class="acts" style="margin-top:14px"><button class="btn" onclick="closePop()">تم</button></div>')}
 window.openAct=()=>{pop='act';AC()};
 window.openOp=()=>{pop='op';POP(PH('🔪 إجراء عملية جراحية')+`<div class="f">${I('op.name','اسم العملية')}${I('op.type','نوع العملية')}${I('op.total','التكلفة','number')}${I('op.paid','المدفوع','number')}${I('op.date','موعد العملية','date')}</div><div class="acts" style="margin-top:14px"><button class="btn" onclick="saveOp();closePop()">حفظ</button></div>`)};
-window.openDet=()=>{pop='det';const dd=D.docId?'الطبيب '+dn(D.docId):'-';POP(PH('بيانات المريض')+`<div class="f"><div><label>الاسم</label><div>${e(D.name)}</div></div><div><label>الهاتف</label><div>${e(D.phone||'-')}</div></div><div><label>السن</label><div>${e(D.age||'-')}</div></div><div><label>النوع</label><div>${e(D.gender||'-')}</div></div><div><label>الطبيب / الشيفت</label><div>${dd} ${e(D.shift||'')}</div></div><div><label>حجز بواسطة</label><div>${e(D.bookedBy||'-')}</div></div></div><label>ملاحظات الحجز</label><div>${e(D.notes||'-')}</div><label>التاريخ المرضي / ملاحظات الاستقبال</label><div>${e(D.hist||'-')}</div>${(D.files||[]).map(f=>`<div class="row"><a href="${e(f.url)}" target="_blank">📎 ${e(f.name)}</a></div>`).join('')}`)};
+window.openDet=()=>{pop='det';const dd=D.docId?'الطبيب '+dn(D.docId):'-';POP(PH('بيانات المريض')+`<div class="f"><div><label>الاسم</label><div>${e(D.name)}</div></div><div><label>الهاتف</label><div>${e(D.phone||'-')}</div></div><div><label>هاتف آخر</label><div>${e(D.phone2||'-')}</div></div><div><label>العنوان</label><div>${e(D.addr||'-')}</div></div><div><label>السن</label><div>${e(D.age||'-')}</div></div><div><label>النوع</label><div>${e(D.gender||'-')}</div></div><div><label>الطبيب / الشيفت</label><div>${dd} ${e(D.shift||'')}</div></div><div><label>حجز بواسطة</label><div>${e(D.bookedBy||'-')}</div></div></div><label>ملاحظات الحجز</label><div>${e(D.notes||'-')}</div><label>التاريخ المرضي / ملاحظات الاستقبال</label><div>${e(D.hist||'-')}</div>${(D.files||[]).map(f=>`<div class="row"><a href="${e(f.url)}" target="_blank">📎 ${e(f.name)}</a></div>`).join('')}`)};
 const DRM=()=>{const f=(k,l)=>`<div><label>${l}</label><input value="${e(DR[k]||'')}" oninput="DR.${k}=this.value"></div>`;
  POP(`<div class="top"><h2>${DR.id?'تعديل طبيب':'إضافة طبيب'}</h2><button class="btn g" onclick="closeX()">✕</button></div><div class="f">${f('name','اسم الطبيب')}${f('spec','التخصص')}${f('extra','بيانات إضافية للروشتة')}<div><label>شكل الروشتة</label><select onchange="DR.design=this.value"><option value="">الافتراضي العام</option>${DES.map(([k,n])=>`<option value="${k}" ${DR.design===k?'selected':''}>${n}</option>`).join('')}</select></div><div><label>نظام العمل</label><select onchange="shN(+this.value)">${[1,2,3].map(n=>`<option value="${n}" ${DR.shifts.length===n?'selected':''}>${n===1?'شيفت واحد':n===2?'شيفتان':'ثلاثة شيفتات'}</option>`).join('')}</select></div></div>${DR.shifts.map((x,k)=>`<div class="f"><div><label>الشيفت ${k+1} — من</label><input type="time" value="${x.from}" oninput="DR.shifts[${k}].from=this.value"></div><div><label>إلى</label><input type="time" value="${x.to}" oninput="DR.shifts[${k}].to=this.value"></div></div>`).join('')}<div class="acts" style="margin-top:16px"><button class="btn" onclick="docSave()">💾 حفظ</button>${DR.id?'<button class="btn r" onclick="docDel()">حذف</button>':''}</div>`)};
 window.docEdit=id=>{DR=id?structuredClone(S.docs.find(x=>x.id===id)):{name:'',spec:'',extra:'',design:'',shifts:[{from:'09:00',to:'17:00'}]};DRM()};
