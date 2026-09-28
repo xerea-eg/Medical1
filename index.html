@@ -36,6 +36,11 @@ textarea{min-height:70px;resize:vertical}label{font-size:12px;color:var(--mut);d
 .kg{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:12px}.kp{margin:0!important;padding:10px 8px!important;text-align:center}.kl{color:var(--mut);font-size:12px}.kv{font-size:20px;font-weight:800}
 .lr{display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:6px}.dz{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}.dz>div{border:2px solid var(--line);border-radius:10px;padding:10px;text-align:center;cursor:pointer;font-size:13px}.dz>div.on{border-color:var(--pri);background:#e6f5f3;font-weight:700}
 @media(max-width:760px){.kg{grid-template-columns:repeat(3,1fr);gap:6px}.kp{padding:7px 3px!important}.kl{font-size:11px}.kv{font-size:17px}.main{padding:12px}}
+.bnav,.msh{display:none}
+@media(max-width:760px){.side{display:none!important}body{padding-bottom:78px}
+.bnav{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:5;background:#fff;border-top:1px solid var(--line);box-shadow:0 -4px 16px #0000001a;padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));gap:4px}
+.bi{flex:1;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;border-radius:12px;color:var(--mut);cursor:pointer;font-size:11px;font-weight:600}.bi i{font-style:normal;font-size:20px;line-height:1}.bi.on{background:#e6f5f3;color:var(--pri)}
+.msh{display:flex;position:fixed;inset:0;background:#0006;z-index:4;align-items:flex-end}.msh>div{background:#fff;width:100%;border-radius:18px 18px 0 0;padding:14px 14px calc(88px + env(safe-area-inset-bottom,0px));display:grid;grid-template-columns:1fr 1fr;gap:8px}.msh a{background:#f3f6f4;padding:14px 10px;border-radius:12px;text-align:center;font-weight:600;font-size:14px}}
 </style></head><body><div id="app"></div><div id="modal"></div><div id="rxm"></div>
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -51,7 +56,9 @@ const $=s=>document.querySelector(s),today=()=>new Date().toISOString().slice(0,
 const e=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const sha=async t=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t)))].map(b=>b.toString(16).padStart(2,'0')).join('');
 const ST={booked:'محجوز',confirmed:'مؤكد',waiting:'في الانتظار',results:'انتظار نتائج',done:'تم الكشف',archive:'أرشيف'};
-const ROLE={admin:'مدير',doctor:'طبيب',secretary:'سكرتارية'};
+const ROLE={admin:'مدير',doctor:'طبيب',secretary:'سكرتارية (استقبال + حسابات)',reception:'استقبال فقط',accounts:'حسابات فقط'};
+const DEF={admin:['dash','book','waiting','results','done','ops','archive','contracts','fin','set'],doctor:['dash','waiting','results','done','archive'],secretary:['dash','book','done','ops','archive','contracts','fin'],reception:['dash','book','done','archive'],accounts:['dash','ops','archive','contracts','fin']};
+const canTab=t=>S.u.role==='admin'||(S.u.perms?S.u.perms.includes(t[0]):(DEF[S.u.role]||[]).includes(t[0]));
 const ALL=['admin','doctor','secretary'];
 const TABS=[['dash','📊 الرئيسية',ALL],['book','📅 الحجوزات',['admin','secretary']],['waiting','🩺 شاشة الطبيب',['admin','doctor']],['results','🧪 انتظار نتائج',['admin','doctor']],['done','✅ تم الكشف',['admin','doctor']],['ops','💰 الحسابات',['admin','secretary']],['archive','🗄 الأرشيف',ALL],['contracts','🤝 التعاقدات',['admin','secretary']],['fin','🏦 الالتزامات النقدية',['admin','secretary']],['set','⚙ الإعدادات',['admin']]];
 let S={u:null,p:[],us:[],fin:[],drugs:[],labItems:[],rxbg:{},chargeItems:[],actionItems:[],pay:[],exp:[],contracts:[],refs:[],cfg:{},v:null,ops2:'عمليات'},D=null,rxOpen=false;
@@ -95,13 +102,17 @@ window.chPw=async()=>{const p=prompt('كلمة المرور الجديدة');if(
 function R(){
   const A=$('#app');
   if(!S.u){A.innerHTML=`<div class="loginwrap"><div class="login"><div class="ic">🏥</div><h2 style="margin:0 0 2px;text-align:center">تسجيل الدخول</h2><div style="text-align:center;color:var(--mut);font-size:13px;margin-bottom:18px">نظام إدارة العيادة</div><label>اسم المستخدم</label><input id="un" value="admin"><label>كلمة المرور</label><input id="pw" type="password" onkeydown="if(event.key=='Enter')login()"><label class="chk"><input type="checkbox" id="rem" checked>تذكر بياناتي على هذا الجهاز</label><button class="btn" style="width:100%;margin-top:8px" onclick="login()">دخول</button></div></div>`;return}
-  const tabs=TABS.filter(t=>t[2].includes(S.u.role));if(!S.v||!tabs.find(t=>t[0]===S.v))S.v=tabs[0][0];
+  const tabs=TABS.filter(canTab);if(!S.v||!tabs.find(t=>t[0]===S.v))S.v=tabs[0][0];
   const c=S.cfg;
   A.innerHTML=`<div class="shell"><div class="side"><img src="${c.logo||'logo.png.png'}" onerror="this.style.display='none'"><h3>${e(c.doctor||'العيادة')}<br><small style="font-weight:400;color:#8fb3b0">${e(c.spec||'')}</small></h3>
   ${tabs.map(t=>`<a class="${S.v===t[0]?'on':''}" onclick="S.v='${t[0]}';R()">${t[1]}</a>`).join('')}
-  <div style="flex:1"></div><a onclick="chPw()">🔑 تغيير كلمة المرور</a><a onclick="logout()">⎋ خروج (${e(S.u.name)})</a></div><div class="main">${view()}</div></div>`;
+  <div style="flex:1"></div><a onclick="chPw()">🔑 تغيير كلمة المرور</a><a onclick="logout()">⎋ خروج (${e(S.u.name)})</a></div><div class="main">${view()}</div></div>${bnav(tabs)}`;
 }
 window.S=S;window.R=R;
+const permBoxes=(pre,sel)=>TABS.filter(t=>t[0]!=='set').map(t=>`<label style="display:flex;align-items:center;gap:4px;font-size:13px;color:var(--ink)"><input type="checkbox" style="width:auto" class="${pre}" value="${t[0]}" ${sel.includes(t[0])?'checked':''}>${t[1]}</label>`).join('');
+window.permDef=(r,sel)=>document.querySelectorAll(sel||'.up_').forEach(c=>c.checked=(DEF[r]||[]).includes(c.value));
+const bnav=tabs=>{const vis=tabs.slice(0,4),hid=tabs.slice(4),hOn=hid.some(t=>t[0]===S.v),ic=t=>t[1].split(' ')[0],lb=t=>t[1].split(' ').slice(1).join(' ');
+  return `<div class="bnav">${vis.map(t=>`<button class="bi ${S.v===t[0]?'on':''}" onclick="S.more=0;S.v='${t[0]}';R()"><i>${ic(t)}</i><span>${lb(t)}</span></button>`).join('')}<button class="bi ${hOn||S.more?'on':''}" onclick="S.more=!S.more;R()"><i>☰</i><span>المزيد</span></button></div>${S.more?`<div class="msh" onclick="S.more=0;R()"><div onclick="event.stopPropagation()">${hid.map(t=>`<a onclick="S.more=0;S.v='${t[0]}';R()">${t[1]}</a>`).join('')}<a onclick="chPw()">🔑 تغيير كلمة المرور</a><a onclick="logout()">⎋ خروج (${e(S.u.name)})</a></div></div>`:''}`};
 const list=(st)=>S.p.filter(p=>st.includes(p.status));
 function card(p,acts=''){
   const cls=p.cls||p.status;
@@ -182,7 +193,7 @@ function view(){
     <div class="f"><div><label>لون الروشتة</label><input type="color" id="c_rxColor" value="${c.rxColor||'#0f766e'}"></div><div><label>شفافية صورة الخلفية (%)</label><input type="range" id="c_rxOp" min="3" max="60" value="${c.rxOp??15}"></div><div><label>مقاس ورق الروشتة</label><select id="c_rxSize">${['A4','A5'].map(o=>`<option ${(c.rxSize||'A4')===o?'selected':''}>${o}</option>`).join('')}</select></div></div>
     <label>صورة خلفية الروشتة (تظهر شفافة خلف النص)</label><input type="file" accept="image/*" onchange="rxBgUp(this)">${S.rxbg.img?`<div style="margin-top:8px"><img src="${S.rxbg.img}" style="height:70px"> <button class="btn s r" onclick="rxBgDel()">حذف الصورة</button></div>`:''}<br><button class="btn" onclick="saveCfg()">حفظ</button></div>`
     +`<div class="box"><h3 style="margin-top:0">قائمة الفحوصات الخارجية</h3><div>${S.labItems.map((x,i)=>`<span class="chip">${e(x.name)} <span onclick="labRm(${i})">✕</span></span>`).join('')||'<div class="empty">لا توجد فحوصات</div>'}</div><div style="display:flex;gap:6px;margin-top:8px"><input id="labIn" placeholder="اسم فحص جديد"><button class="btn s" onclick="labCat()">＋ إضافة</button></div></div>`
-    +`<div class="box"><h3 style="margin-top:0">المستخدمون</h3><div class="f"><div><label>اسم المستخدم</label><input id="uU"></div><div><label>الاسم</label><input id="uN"></div><div><label>كلمة المرور</label><input id="uP"></div><div><label>الصلاحية</label><select id="uR">${Object.entries(ROLE).map(([k,v])=>`<option value="${k}">${v}</option>`)}</select></div></div><br><button class="btn" onclick="addUser()">+ إضافة مستخدم</button>${S.us.map(u=>`<div class="row"><span><b>${e(u.name)}</b> (${e(u.username)}) — ${ROLE[u.role]}</span><span>${B('تعديل',`eu('${u.id}')`,'g')} ${u.id===S.u.id?'':B('حذف',`du('${u.id}')`,'r')}</span></div>`).join('')}</div>`;}
+    +`<div class="box"><h3 style="margin-top:0">المستخدمون</h3><div class="f"><div><label>اسم المستخدم</label><input id="uU"></div><div><label>الاسم</label><input id="uN"></div><div><label>كلمة المرور</label><input id="uP"></div><div><label>الصلاحية</label><select id="uR" onchange="permDef(this.value)">${Object.entries(ROLE).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></div></div><label>الأقسام المسموحة (تتحدد تلقائياً حسب الصلاحية ويمكن تعديلها)</label><div style="display:flex;flex-wrap:wrap;gap:10px">${permBoxes('up_',DEF.admin)}</div><br><button class="btn" onclick="addUser()">+ إضافة مستخدم</button>${S.us.map(u=>`<div class="row"><span><b>${e(u.name)}</b> (${e(u.username)}) — ${ROLE[u.role]}</span><span>${B('تعديل',`eu('${u.id}')`,'g')} ${u.id===S.u.id?'':B('حذف',`du('${u.id}')`,'r')}</span></div>`).join('')}</div>`;}
 }
 
 /* ---------- إجراءات ---------- */
@@ -219,8 +230,10 @@ window.addRef=async ctId=>{const n=prompt('اسم المريض/الحالة');if
 window.delRef=id=>deleteDoc(doc(db,'referrals',id));
 window.saveCfg=async()=>{const o={...S.cfg};['doctor','spec','phone','wa','email','addr','hours','extra','shift','rxColor','rxOp','rxSize'].forEach(k=>o[k]=$('#c_'+k).value);await setDoc(doc(db,'settings','clinic'),o);alert('تم الحفظ')};
 window.logo=inp=>{const f=inp.files[0],im=new Image();im.onload=async()=>{const k=Math.min(1,400/im.width),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);await setDoc(doc(db,'settings','clinic'),{...S.cfg,logo:c.toDataURL('image/png')})};im.src=URL.createObjectURL(f)};
-window.addUser=async()=>{const u=$('#uU').value.trim(),p=$('#uP').value;if(!u||!p)return alert('اكتب اسم المستخدم وكلمة المرور');if(S.us.some(x=>x.username===u))return alert('الاسم مستخدم');await addDoc(collection(db,'users'),{username:u,name:$('#uN').value||u,role:$('#uR').value,ph:await sha(p)})};
-window.eu=async id=>{const u=S.us.find(x=>x.id===id),n=prompt('الاسم',u.name);if(n===null)return;const r=prompt('الصلاحية: admin / doctor / secretary',u.role),p=prompt('كلمة مرور جديدة (اتركها فارغة بدون تغيير)'),o={name:n,role:ROLE[r]?r:u.role};if(p)o.ph=await sha(p);await updateDoc(doc(db,'users',id),o)};
+window.addUser=async()=>{const u=$('#uU').value.trim(),p=$('#uP').value;if(!u||!p)return alert('اكتب اسم المستخدم وكلمة المرور');if(S.us.some(x=>x.username===u))return alert('الاسم مستخدم');await addDoc(collection(db,'users'),{username:u,name:$('#uN').value||u,role:$('#uR').value,perms:[...document.querySelectorAll('.up_:checked')].map(c=>c.value),ph:await sha(p)})};
+window.eu=id=>{const u=S.us.find(x=>x.id===id),pm=u.perms||DEF[u.role]||[];
+$('#rxm').innerHTML=`<div class="mb"><div class="top"><h2>تعديل: ${e(u.username)}</h2><button class="btn g" onclick="$('#rxm').style.display='none'">✕</button></div><div class="f"><div><label>الاسم</label><input id="eN2" value="${e(u.name)}"></div><div><label>الصلاحية</label><select id="eR2" onchange="permDef(this.value,'.ue_')">${Object.entries(ROLE).map(([k,v])=>`<option value="${k}" ${u.role===k?'selected':''}>${v}</option>`).join('')}</select></div><div><label>كلمة مرور جديدة (اختياري)</label><input id="eP2"></div></div><label>الأقسام المسموحة</label><div style="display:flex;flex-wrap:wrap;gap:10px">${permBoxes('ue_',pm)}</div><div class="acts" style="margin-top:16px"><button class="btn" onclick="euSave('${id}')">💾 حفظ</button></div></div>`;$('#rxm').style.display='flex'};
+window.euSave=async id=>{const o={name:$('#eN2').value,role:$('#eR2').value,perms:[...document.querySelectorAll('.ue_:checked')].map(c=>c.value)};if($('#eP2').value)o.ph=await sha($('#eP2').value);await updateDoc(doc(db,'users',id),o);$('#rxm').style.display='none'};
 window.du=id=>confirm('حذف المستخدم؟')&&deleteDoc(doc(db,'users',id));
 
 /* ---------- ملف المريض ---------- */
