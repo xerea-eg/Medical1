@@ -109,7 +109,14 @@ window.login=async()=>{
   try{
     await setPersistence(auth,$('#rem')?.checked?browserLocalPersistence:browserSessionPersistence);
     await signInWithEmailAndPassword(auth,mail(un),pw);
-  }catch(err){alert('اسم المستخدم أو كلمة المرور غير صحيحة')}
+  }catch(err){console.error(err.code,err.message);
+    const M={'auth/operation-not-allowed':'تسجيل الدخول بالإيميل والباسورد غير مفعّل في Firebase (Authentication > Sign-in method)',
+    'auth/invalid-credential':'اسم المستخدم أو كلمة المرور غير صحيحة، أو الحساب غير موجود في Authentication',
+    'auth/invalid-login-credentials':'اسم المستخدم أو كلمة المرور غير صحيحة، أو الحساب غير موجود في Authentication',
+    'auth/user-not-found':'الحساب غير موجود في Authentication','auth/wrong-password':'كلمة المرور غير صحيحة',
+    'auth/invalid-email':'اسم المستخدم غير صالح','auth/too-many-requests':'محاولات كثيرة، حاول بعد شوية',
+    'auth/network-request-failed':'مشكلة في الاتصال بالإنترنت','auth/api-key-not-valid.-please-pass-a-valid-api-key.':'مفتاح API غير صالح'};
+    alert((M[err.code]||'تعذر تسجيل الدخول')+'\n('+err.code+')')}
 };
 window.logout=async()=>{await signOut(auth);location.reload()};
 window.chPw=async()=>{
