@@ -49,18 +49,19 @@ textarea{min-height:70px;resize:vertical}label{font-size:12px;color:var(--mut);d
 .ib{width:34px;height:34px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}.stk{position:sticky;top:0;z-index:3;background:var(--bg);padding-bottom:6px}
 </style></head><body><div id="app"></div><div id="modal"></div><div id="rxm"></div>
 <script type="module">
-import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {getFirestore,collection,doc,onSnapshot,addDoc,setDoc,updateDoc,deleteDoc,getDocs,runTransaction} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {initializeApp,deleteApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut,updatePassword,setPersistence,browserLocalPersistence,browserSessionPersistence} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore,getDoc,collection,doc,onSnapshot,addDoc,setDoc,updateDoc,deleteDoc,getDocs,runTransaction} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ====== ضع الإعدادات هنا ====== */
-const firebaseConfig={apiKey:"AIzaSyDtytTD5VHlK8VGgOoE_N-Q7c4ZiX2ntEU",authDomain:"xeria-eg.firebaseapp.com",projectId:"xeria-eg",storageBucket:"xeria-eg.firebasestorage.app",messagingSenderId:"1052466301432",appId:"1:1052466301432:web:e3cf0a591e63973d46ee0d"};
+const firebaseConfig={apiKey:"AIzaSyA7ffFoeYgPfyo077pcAzd6MXHjQFp76vI",authDomain:"medical-system-af4d9.firebaseapp.com",projectId:"medical-system-af4d9",storageBucket:"medical-system-af4d9.firebasestorage.app",messagingSenderId:"1039321964668",appId:"1:1039321964668:web:41621e53decad1d92329f9",measurementId:"G-2SW1C08112"};
 const APPS_URL="https://script.google.com/macros/s/AKfycbwwV0Buz3GSImjZwqv9HojeGlceTqK1kgyCcKaCc8qmmqfI-0POjbHWAIKOCzIUrAu7Jg/exec"; // رابط Google Apps Script (Web App) لرفع الملفات على درايف
 /* ============================== */
 
-const db=getFirestore(initializeApp(firebaseConfig));
+const app=initializeApp(firebaseConfig),db=getFirestore(app),auth=getAuth(app);
+const mail=u=>u+'@medical.xeriag.com';
 const $=s=>document.querySelector(s),today=()=>new Date().toISOString().slice(0,10);
 const e=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const sha=async t=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t)))].map(b=>b.toString(16).padStart(2,'0')).join('');
 const ST={booked:'محجوز',confirmed:'مؤكد',waiting:'في الانتظار',results:'انتظار نتائج',done:'تم الكشف',archive:'أرشيف'};
 const ROLE={admin:'مدير',doctor:'طبيب',secretary:'سكرتارية (استقبال + حسابات)',reception:'استقبال فقط',accounts:'حسابات فقط'};
 const DEF={admin:['dash','book','waiting','results','done','ops','archive','contracts','fin','set'],doctor:['dash','waiting','results','done','archive'],secretary:['dash','book','done','ops','archive','contracts','fin'],reception:['dash','book','done','archive'],accounts:['dash','ops','archive','contracts','fin']};
@@ -71,44 +72,56 @@ let S={u:null,p:[],us:[],fin:[],drugs:[],docs:[],finTypes:[],labItems:[],rxbg:{}
 const BLANK=()=>({labs:[],labNote:'',status:'booked',type:'كشف جديد',notes:'',date:today(),time:'',name:'',phone:'',age:'',gender:'',hist:'',diag:'',enotes:'',chronic:[],charges:[],actions:[],rx:[],rxNote:'',files:[],res:{type:'',note:''},op:{name:'',type:'',total:'',paid:'',date:''}});
 
 /* ---------- بيانات ---------- */
+let listening=false;
 async function boot(){
-  const us=await getDocs(collection(db,'users'));
-  if(us.empty)await setDoc(doc(db,'users','admin'),{username:'admin',name:'المدير',role:'admin',ph:await sha('123123')});
-  const uid=sessionStorage.uid;
-  if(uid){const d=us.docs.find(x=>x.id===uid);if(d){S.u={...d.data(),id:d.id};listen()}}
-  else{try{const r=JSON.parse(localStorage.getItem('rem')||'null');if(r){const d=us.docs.find(x=>x.data().username===r.u&&x.data().ph===r.h);if(d){sessionStorage.uid=d.id;S.u={...d.data(),id:d.id};listen()}}}catch{}}
-  R();
+  onAuthStateChanged(auth,async fu=>{
+    if(!fu){S.u=null;R();return}
+    try{
+      const d=await getDoc(doc(db,'users',fu.uid));
+      if(!d.exists()){await signOut(auth);S.u=null;R();alert('هذا الحساب غير مفعّل، تواصل مع المدير');return}
+      S.u={...d.data(),id:d.id};S.v=null;
+      if(!listening){listening=true;listen()}
+      R();
+    }catch(err){console.error(err);await signOut(auth);S.u=null;R();alert('تعذر تحميل بيانات المستخدم')}
+  });
 }
 window.addEventListener('beforeunload',ev=>{ev.preventDefault();ev.returnValue=''});
+const ls=(r,f)=>onSnapshot(r,f,x=>console.warn('لا توجد صلاحية:',x.code));
 function listen(){
-  onSnapshot(collection(db,'drugs'),s=>{S.drugs=s.docs.map(d=>d.data())});
-  onSnapshot(collection(db,'labItems'),s=>{S.labItems=s.docs.map(d=>d.data()).sort((a,b)=>a.name.localeCompare(b.name,'ar'));R()});onSnapshot(doc(db,'settings','rxbg'),s=>{S.rxbg=s.data()||{};R()});
-  onSnapshot(collection(db,'doctors'),s=>{S.docs=s.docs.map(d=>({...d.data(),id:d.id}));R()});onSnapshot(collection(db,'finTypes'),s=>{S.finTypes=s.docs.map(d=>d.data());R()});
-  onSnapshot(collection(db,'chargeItems'),s=>{S.chargeItems=s.docs.map(d=>d.data())});
-  onSnapshot(collection(db,'actionItems'),s=>{S.actionItems=s.docs.map(d=>d.data())});
-  onSnapshot(collection(db,'patients'),s=>{S.p=s.docs.map(d=>({...d.data(),id:d.id}));R()});
-  onSnapshot(collection(db,'users'),s=>{S.us=s.docs.map(d=>({...d.data(),id:d.id}));R()});
-  onSnapshot(collection(db,'fin'),s=>{S.fin=s.docs.map(d=>({...d.data(),id:d.id}));R()});
-  onSnapshot(collection(db,'payments'),s=>{S.pay=s.docs.map(d=>({...d.data(),id:d.id}));R()});
-  onSnapshot(collection(db,'expenses'),s=>{S.exp=s.docs.map(d=>({...d.data(),id:d.id}));R()});
-  onSnapshot(collection(db,'contracts'),s=>{S.contracts=s.docs.map(d=>({...d.data(),id:d.id}));R()});
-  onSnapshot(collection(db,'referrals'),s=>{S.refs=s.docs.map(d=>({...d.data(),id:d.id}));R()});
-  onSnapshot(doc(db,'settings','clinic'),s=>{S.cfg=s.data()||{};R()});
+  ls(collection(db,'drugs'),s=>{S.drugs=s.docs.map(d=>d.data())});
+  ls(collection(db,'labItems'),s=>{S.labItems=s.docs.map(d=>d.data()).sort((a,b)=>a.name.localeCompare(b.name,'ar'));R()});ls(doc(db,'settings','rxbg'),s=>{S.rxbg=s.data()||{};R()});
+  ls(collection(db,'doctors'),s=>{S.docs=s.docs.map(d=>({...d.data(),id:d.id}));R()});ls(collection(db,'finTypes'),s=>{S.finTypes=s.docs.map(d=>d.data());R()});
+  ls(collection(db,'chargeItems'),s=>{S.chargeItems=s.docs.map(d=>d.data())});
+  ls(collection(db,'actionItems'),s=>{S.actionItems=s.docs.map(d=>d.data())});
+  ls(collection(db,'patients'),s=>{S.p=s.docs.map(d=>({...d.data(),id:d.id}));R()});
+  ls(collection(db,'users'),s=>{S.us=s.docs.map(d=>({...d.data(),id:d.id}));const me=S.us.find(x=>x.id===S.u?.id);if(me)S.u=me;R()});
+  ls(collection(db,'fin'),s=>{S.fin=s.docs.map(d=>({...d.data(),id:d.id}));R()});
+  ls(collection(db,'payments'),s=>{S.pay=s.docs.map(d=>({...d.data(),id:d.id}));R()});
+  ls(collection(db,'expenses'),s=>{S.exp=s.docs.map(d=>({...d.data(),id:d.id}));R()});
+  ls(collection(db,'contracts'),s=>{S.contracts=s.docs.map(d=>({...d.data(),id:d.id}));R()});
+  ls(collection(db,'referrals'),s=>{S.refs=s.docs.map(d=>({...d.data(),id:d.id}));R()});
+  ls(doc(db,'settings','clinic'),s=>{S.cfg=s.data()||{};R()});
 }
 const nextNum=()=>runTransaction(db,async t=>{const r=doc(db,'meta','counter'),s=await t.get(r),n=(s.exists()?s.data().n:0)+1;t.set(r,{n});return n});
 window.login=async()=>{
-  const us=await getDocs(collection(db,'users')),h=await sha($('#pw').value),u=us.docs.map(d=>({...d.data(),id:d.id})).find(x=>x.username===$('#un').value.trim()&&x.ph===h);
-  if(!u)return alert('اسم المستخدم أو كلمة المرور غير صحيحة');
-  if($('#rem')?.checked)localStorage.setItem('rem',JSON.stringify({u:u.username,h}));else localStorage.removeItem('rem');
-  sessionStorage.uid=u.id;S.u=u;S.v=null;listen();R();
+  const un=$('#un').value.trim().toLowerCase(),pw=$('#pw').value;
+  if(!un||!pw)return alert('اكتب اسم المستخدم وكلمة المرور');
+  try{
+    await setPersistence(auth,$('#rem')?.checked?browserLocalPersistence:browserSessionPersistence);
+    await signInWithEmailAndPassword(auth,mail(un),pw);
+  }catch(err){alert('اسم المستخدم أو كلمة المرور غير صحيحة')}
 };
-window.logout=()=>{sessionStorage.clear();localStorage.removeItem('rem');location.reload()};
-window.chPw=async()=>{const p=prompt('كلمة المرور الجديدة');if(p){await updateDoc(doc(db,'users',S.u.id),{ph:await sha(p)});alert('تم التغيير')}};
+window.logout=async()=>{await signOut(auth);location.reload()};
+window.chPw=async()=>{
+  const p=prompt('كلمة المرور الجديدة (6 أحرف على الأقل)');if(!p)return;
+  try{await updatePassword(auth.currentUser,p);alert('تم التغيير')}
+  catch(err){alert(err.code==='auth/requires-recent-login'?'سجّل الخروج ثم ادخل من جديد وحاول تاني':err.code==='auth/weak-password'?'كلمة المرور ضعيفة (6 أحرف على الأقل)':'تعذر التغيير')}
+};
 
 /* ---------- الواجهة ---------- */
 function R(){
   const A=$('#app');
-  if(!S.u){A.innerHTML=`<div class="loginwrap"><div class="login"><div class="ic">🏥</div><h2 style="margin:0 0 2px;text-align:center">تسجيل الدخول</h2><div style="text-align:center;color:var(--mut);font-size:13px;margin-bottom:18px">نظام إدارة العيادة</div><label>اسم المستخدم</label><input id="un" value="admin"><label>كلمة المرور</label><input id="pw" type="password" onkeydown="if(event.key=='Enter')login()"><label class="chk"><input type="checkbox" id="rem" checked>تذكر بياناتي على هذا الجهاز</label><button class="btn" style="width:100%;margin-top:8px" onclick="login()">دخول</button></div></div>`;return}
+  if(!S.u){A.innerHTML=`<div class="loginwrap"><div class="login"><div class="ic">🏥</div><h2 style="margin:0 0 2px;text-align:center">تسجيل الدخول</h2><div style="text-align:center;color:var(--mut);font-size:13px;margin-bottom:18px">نظام إدارة العيادة</div><label>اسم المستخدم</label><input id="un" autocomplete="username" autocapitalize="none" dir="ltr"><label>كلمة المرور</label><input id="pw" type="password" autocomplete="current-password" onkeydown="if(event.key=='Enter')login()"><label class="chk"><input type="checkbox" id="rem" checked>تذكر بياناتي على هذا الجهاز</label><button class="btn" style="width:100%;margin-top:8px" onclick="login()">دخول</button></div></div>`;return}
   const tabs=TABS.filter(canTab);if(!S.v||!tabs.find(t=>t[0]===S.v))S.v=tabs[0][0];
   const c=S.cfg;
   A.innerHTML=`<div class="shell"><div class="side"><img src="${c.logo||'logo.png.png'}" onerror="this.style.display='none'"><h3>${e(c.doctor||'العيادة')}<br><small style="font-weight:400;color:#8fb3b0">${e(c.spec||'')}</small></h3>
@@ -248,11 +261,30 @@ window.addRef=async ctId=>{const n=prompt('اسم المريض/الحالة');if
 window.delRef=id=>deleteDoc(doc(db,'referrals',id));
 window.saveCfg=async()=>{const o={...S.cfg};['phone','wa','email','addr','hours','rxColor','rxOp','rxSize'].forEach(k=>{const x=$('#c_'+k);if(x)o[k]=x.value});await setDoc(doc(db,'settings','clinic'),o);alert('تم الحفظ')};
 window.logo=inp=>{const f=inp.files[0],im=new Image();im.onload=async()=>{const k=Math.min(1,400/im.width),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);await setDoc(doc(db,'settings','clinic'),{...S.cfg,logo:c.toDataURL('image/png')})};im.src=URL.createObjectURL(f)};
-window.addUser=async()=>{const u=$('#uU').value.trim(),p=$('#uP').value;if(!u||!p)return alert('اكتب اسم المستخدم وكلمة المرور');if(S.us.some(x=>x.username===u))return alert('الاسم مستخدم');await addDoc(collection(db,'users'),{username:u,name:$('#uN').value||u,role:$('#uR').value,perms:[...document.querySelectorAll('.up_:checked')].map(c=>c.value),docId:$('#uD')?.value||'',ph:await sha(p)});$('#rxm').style.display='none'};
+window.addUser=async()=>{
+  const u=$('#uU').value.trim().toLowerCase(),p=$('#uP').value;
+  if(!u||!p)return alert('اكتب اسم المستخدم وكلمة المرور');
+  if(!/^[a-z0-9._-]{3,30}$/.test(u))return alert('اسم المستخدم: حروف إنجليزية وأرقام فقط (من 3 إلى 30)');
+  if(p.length<6)return alert('كلمة المرور 6 أحرف على الأقل');
+  if(S.us.some(x=>x.username===u))return alert('الاسم مستخدم');
+  const sec=initializeApp(firebaseConfig,'sec'+Date.now()),sa=getAuth(sec);let uid;
+  try{
+    try{uid=(await createUserWithEmailAndPassword(sa,mail(u),p)).user.uid}
+    catch(err){
+      if(err.code==='auth/email-already-in-use'){
+        try{uid=(await signInWithEmailAndPassword(sa,mail(u),p)).user.uid}
+        catch{return alert('الاسم له حساب قديم بكلمة مرور مختلفة. احذفه من Firebase Console > Authentication أو استخدم اسم آخر')}
+      }else return alert(err.code==='auth/weak-password'?'كلمة المرور ضعيفة':'تعذر إنشاء الحساب')
+    }
+    await setDoc(doc(db,'users',uid),{username:u,name:$('#uN').value||u,role:$('#uR').value,perms:[...document.querySelectorAll('.up_:checked')].map(c=>c.value),docId:$('#uD')?.value||''});
+    await signOut(sa);$('#rxm').style.display='none';
+  }catch(err){console.error(err);alert('تعذر الحفظ')}
+  finally{await deleteApp(sec)}
+};
 window.eu=id=>{const u=S.us.find(x=>x.id===id),pm=u.perms||DEF[u.role]||[];
-$('#rxm').innerHTML=`<div class="mb"><div class="top"><h2>تعديل: ${e(u.username)}</h2><button class="btn g" onclick="closeX()">✕</button></div><div class="f"><div><label>الاسم</label><input id="eN2" value="${e(u.name)}"></div><div><label>الصلاحية</label><select id="eR2" onchange="permDef(this.value,'.ue_')">${Object.entries(ROLE).map(([k,v])=>`<option value="${k}" ${u.role===k?'selected':''}>${v}</option>`).join('')}</select></div><div><label>كلمة مرور جديدة (اختياري)</label><input id="eP2"></div><div><label>الطبيب المرتبط</label><select id="eD"><option value="">—</option>${docOpts(u.docId)}</select></div></div><label>الأقسام المسموحة</label><div style="display:flex;flex-wrap:wrap;gap:10px">${permBoxes('ue_',pm)}</div><div class="acts" style="margin-top:16px"><button class="btn" onclick="euSave('${id}')">💾 حفظ</button></div></div>`;$('#rxm').style.display='flex'};
-window.euSave=async id=>{const o={docId:$('#eD').value,name:$('#eN2').value,role:$('#eR2').value,perms:[...document.querySelectorAll('.ue_:checked')].map(c=>c.value)};if($('#eP2').value)o.ph=await sha($('#eP2').value);await updateDoc(doc(db,'users',id),o);$('#rxm').style.display='none'};
-window.du=id=>confirm('حذف المستخدم؟')&&deleteDoc(doc(db,'users',id));
+$('#rxm').innerHTML=`<div class="mb"><div class="top"><h2>تعديل: ${e(u.username)}</h2><button class="btn g" onclick="closeX()">✕</button></div><div class="f"><div><label>الاسم</label><input id="eN2" value="${e(u.name)}"></div><div><label>الصلاحية</label><select id="eR2" onchange="permDef(this.value,'.ue_')">${Object.entries(ROLE).map(([k,v])=>`<option value="${k}" ${u.role===k?'selected':''}>${v}</option>`).join('')}</select></div><div><label>الطبيب المرتبط</label><select id="eD"><option value="">—</option>${docOpts(u.docId)}</select></div></div><label>الأقسام المسموحة</label><div style="display:flex;flex-wrap:wrap;gap:10px">${permBoxes('ue_',pm)}</div><div class="acts" style="margin-top:16px"><button class="btn" onclick="euSave('${id}')">💾 حفظ</button></div></div>`;$('#rxm').style.display='flex'};
+window.euSave=async id=>{const o={docId:$('#eD').value,name:$('#eN2').value,role:$('#eR2').value,perms:[...document.querySelectorAll('.ue_:checked')].map(c=>c.value)};await updateDoc(doc(db,'users',id),o);$('#rxm').style.display='none'};
+window.du=id=>{if(id===S.u.id)return alert('لا يمكنك حذف حسابك');if(confirm('حذف المستخدم؟'))deleteDoc(doc(db,'users',id))};
 
 /* ---------- ملف المريض ---------- */
 const get=p=>p.split('.').reduce((o,k)=>o?.[k],D);
